@@ -47,7 +47,9 @@ section.grp h2 small{font:12px var(--mono);color:var(--ink2);font-weight:400}
 .tile:hover{transform:translateY(-2px)}
 .tile .l{font:700 15px var(--sans);display:block}
 .tile .m{font:500 19px var(--mono);display:block;margin-top:2px;letter-spacing:-.02em}
-.tile .w{font:11px var(--mono);display:block;opacity:.8;margin-top:2px}
+.tile .w{font:11px var(--mono);display:block;opacity:.9;margin-top:2px;line-height:1.35}
+.tile .w b{font-weight:500}
+.tile{min-height:96px}
 .tile.dark{color:#fff}
 .tile .flag{position:absolute;right:6px;top:6px;width:7px;height:7px;border-radius:50%;background:currentColor;opacity:.55}
 .tile .flag.wide{border-radius:0}
@@ -85,16 +87,6 @@ th{font:600 12px var(--sans);color:var(--ink2);cursor:pointer;user-select:none;p
 .kv dt{color:var(--ink2)} .kv dd{margin:0;text-align:right}
 .live-box{border:1px dashed var(--ember);border-radius:3px;padding:12px 14px;font:13px/1.5 var(--mono);color:var(--ink2)}
 .mapsel{margin:0 0 8px}
-.ticker{background:var(--ink);color:var(--sand);overflow:hidden;white-space:nowrap;border-bottom:1px solid var(--line);font:12px/1 var(--mono);height:34px;display:none;align-items:center;position:relative}
-.ticker.on{display:flex}
-.ticker .lbl{flex:none;padding:0 12px;height:100%;display:flex;align-items:center;background:var(--crimson);color:#fff;font-weight:500;z-index:1}
-.ticker .rail{overflow:hidden;flex:1;height:100%}
-.ticker .track{display:inline-flex;height:100%;align-items:center;animation:tk 90s linear infinite;will-change:transform}
-.ticker:hover .track{animation-play-state:paused}
-.ticker a{display:inline-flex;gap:8px;align-items:baseline;padding:0 18px;text-decoration:none;border-right:1px solid rgba(255,255,255,.18)}
-.ticker .px{font-weight:500}.ticker .up{color:#7FD99A}.ticker .dn{color:#FF8F82}.ticker .mdl{opacity:.6}
-@keyframes tk{from{transform:translateX(0)}to{transform:translateX(-50%)}}
-@media (prefers-reduced-motion:reduce){.ticker .track{animation:none}.ticker .rail{overflow-x:auto}}
 </style>
 </head>
 <body>
@@ -102,7 +94,6 @@ th{font:600 12px var(--sans);color:var(--ink2);cursor:pointer;user-select:none;p
   <h1>2026 Midterm <em>Board</em></h1>
   <div class="meta"><div id="gen"></div><div class="status"><span class="dot" id="dot"></span><span id="feed">Live feed not connected</span></div></div>
 </div></header>
-<div class="ticker" id="ticker" aria-label="Live Kalshi prices"><span class="lbl">Kalshi</span><div class="rail"><div class="track" id="tk"></div></div></div>
 <main class="wrap" id="app"></main>
 <div class="tip" id="tip"></div>
 
@@ -133,22 +124,22 @@ function esc(s){return String(s==null?'':s).replace(/[&<>"]/g,function(c){return
 function mw(r){var l=LIVE&&LIVE.races&&LIVE.races[r.id];return l&&l.win_prob!=null?l.win_prob:null;}
 
 function kq(r){return KAL&&KAL.prices&&KAL.prices[r.id]||null;}
+function tileOdds(r){
+  var m=mw(r),q=kq(r),h='';
+  if(m!=null)h+='Model <b>'+Math.round(m*100)+'%</b>';
+  if(q&&q.mid!=null)h+=(h?'<br>':'')+'Kalshi <b>'+Math.round(q.mid)+'%</b>';
+  return h;
+}
+function updateTiles(){
+  var els=document.querySelectorAll('.tile .w');
+  for(var i=0;i<els.length;i++){var r=DATA.races.filter(function(x){return x.id===els[i].getAttribute('data-id');})[0];if(r)els[i].innerHTML=tileOdds(r);}
+}
 function kfmt(v){return v==null?'–':(Math.round(v*10)/10)+'\u00a2';}
 function kchg(q){var c=q&&q.change;if(c==null||c===0)return '';return '<span class="'+(c>0?'up':'dn')+'">'+(c>0?'\u25b2':'\u25bc')+Math.abs(c).toFixed(1)+'</span>';}
-function renderTicker(){
-  var el=document.getElementById('ticker'),tk=document.getElementById('tk');
-  if(!el||!DATA)return;
-  var items=DATA.races.filter(function(r){var q=kq(r);return q&&q.mid!=null;});
-  if(!items.length){el.className='ticker';return;}
-  items.sort(function(a,b){return Math.abs(kq(b).change||0)-Math.abs(kq(a).change||0)||a.label.localeCompare(b.label);});
-  var one=items.map(function(r){var q=kq(r),m=mw(r);
-    return '<a href="#/race/'+r.id+'"><b>'+esc(r.label)+'</b><span class="px">R '+kfmt(q.mid)+'</span>'+kchg(q)+(m!=null?'<span class="mdl">model '+Math.round(m*100)+'%</span>':'')+'</a>';}).join('');
-  tk.innerHTML=one+one;el.className='ticker on';
-}
 function refreshKalshi(){
   if(!window.ENGINE_URL)return;
   fetch(window.ENGINE_URL+'/api/kalshi',{cache:'no-store'}).then(function(r){return r.ok?r.json():null;}).catch(function(){return null;})
-    .then(function(k){if(!k||!k.prices)return;KAL=k;renderTicker();if(/^#\/race\//.test(location.hash))updateRaceKalshi();});
+    .then(function(k){if(!k||!k.prices)return;KAL=k;if(/^#\/race\//.test(location.hash))updateRaceKalshi();else updateTiles();});
 }
 function updateRaceKalshi(){
   var m=location.hash.match(/^#\/race\/(.+)$/);if(!m)return;
@@ -201,11 +192,11 @@ function renderBoard(){
       var rw=k.vh_win; // baseline win prob
       h+='<a class="tile'+(c.dark?' dark':'')+'" style="background:'+c.bg+'" href="#/race/'+r.id+'">'+
          '<span class="l">'+esc(r.label)+'</span><span class="m">'+(v==null?'n/a':fmtM(v))+'</span>'+
-         '<span class="w">'+(mw(r)!=null?'Model '+Math.round(mw(r)*100)+'%':'')+'</span></a>';
+         '<span class="w" data-id="'+r.id+'">'+tileOdds(r)+'</span></a>';
     });
     h+='</div></section>';
   });
-  h+='<p class="note">Tile color is the projected two-party margin (R minus D) from our county-level projections. Early-vote and Election Day views come from our models; races reported by town or township, and all-mail races, have no split and show n/a in those views. The percentage on each tile is the model probability that the Republican wins. The model starts from our pre-election margin and updates from county results on election night.</p>';
+  h+='<p class="note">Tile color is the projected two-party margin (R minus D) from our county-level projections. Early-vote and Election Day views come from our models; races reported by town or township, and all-mail races, have no split and show n/a in those views. Each tile shows the model probability that the Republican wins and the live Kalshi market price for the same outcome. The model starts from our pre-election margin and updates from county results on election night.</p>';
   app.innerHTML=h;
   document.getElementById('segType').onclick=function(e){var t=e.target.getAttribute('data-t');if(t){state.type=t;renderBoard();}};
   document.getElementById('segView').onclick=function(e){var t=e.target.getAttribute('data-v');if(t){state.view=t;renderBoard();}};
@@ -359,7 +350,7 @@ function load(){
     GEO.features.forEach(function(f){GEOIDX[f.id||(f.properties&&f.properties.f)]=f;});
     document.getElementById('gen').textContent='Projections as of '+DATA.generated;
     if(LIVE){var lv=LIVE.mode==='live';document.getElementById('dot').className='dot'+(lv?' live':'');document.getElementById('feed').textContent=(lv?'Live results ':'Model forecast ')+(LIVE.updated||'');}
-    route();renderTicker();refreshKalshi();
+    route();refreshKalshi();
   }).catch(function(e){
     app.innerHTML='<p class="note">Could not load data.json and counties.geojson. Serve this folder over HTTP (for example, deploy it to Cloudflare Pages) instead of opening the file directly.</p>';
   });
