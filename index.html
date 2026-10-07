@@ -156,14 +156,14 @@ function renderBoard(){
     rs.forEach(function(r){
       var v=raceView(r),c=color(v),k=r.kalshi||{};
       var w=k.vh_win!=null?(k.vh_win>=50?(k.prev==='R'||true?'':''):''):'';
-      var rw=k.vh_win; // VoteHub win prob for the R/leading side? shown as stated
+      var rw=k.vh_win; // baseline win prob
       h+='<a class="tile'+(c.dark?' dark':'')+'" style="background:'+c.bg+'" href="#/race/'+r.id+'">'+
          '<span class="l">'+esc(r.label)+'</span><span class="m">'+(v==null?'n/a':fmtM(v))+'</span>'+
-         '<span class="w">'+(mw(r)!=null?'Model '+Math.round(mw(r)*100)+'%':'')+'</span><span class="w">'+(k.vh_win!=null?'VoteHub '+Math.round(k.vh_win)+'%':'')+'</span></a>';
+         '<span class="w">'+(mw(r)!=null?'Model '+Math.round(mw(r)*100)+'%':'')+'</span><span class="w">'+(k.vh_win!=null?'Baseline '+Math.round(k.vh_win)+'%':'')+'</span></a>';
     });
     h+='</div></section>';
   });
-  h+='<p class="note">Tile color is the projected two-party margin (R minus D) from VoteHub county projections. Early-vote and Election Day views come from our method models; races reported by town or township, and all-mail races, have no split and show n/a in those views. Model and VoteHub are each the probability that the Republican wins. The model starts from the VoteHub margin and updates from county results on election night.</p>';
+  h+='<p class="note">Tile color is the projected two-party margin (R minus D) from our county-level projections. Early-vote and Election Day views come from our method models; races reported by town or township, and all-mail races, have no split and show n/a in those views. Model and Baseline are each the probability that the Republican wins. The model starts from the baseline margin and updates from county results on election night.</p>';
   app.innerHTML=h;
   document.getElementById('segType').onclick=function(e){var t=e.target.getAttribute('data-t');if(t){state.type=t;renderBoard();}};
   document.getElementById('segView').onclick=function(e){var t=e.target.getAttribute('data-v');if(t){state.view=t;renderBoard();}};
@@ -219,7 +219,7 @@ function drawMap(r,which){
   el.addEventListener('mousemove',function(e){
     var t=e.target; if(t.tagName!=='path'){tip.style.display='none';return;}
     var x=feats[+t.getAttribute('data-i')].row, m=t.getAttribute('data-m');
-    tip.innerHTML='<b>'+esc(x[1])+'</b><br>'+(m===''?'':fmtM(+m))+'<br>'+(x[2]+x[3]).toLocaleString()+' votes (VoteHub)';
+    tip.innerHTML='<b>'+esc(x[1])+'</b><br>'+(m===''?'':fmtM(+m))+'<br>'+(x[2]+x[3]).toLocaleString()+' votes';
     tip.style.display='block';tip.style.left=Math.min(window.innerWidth-250,e.clientX+14)+'px';tip.style.top=(e.clientY+14)+'px';
   });
   el.addEventListener('mouseleave',function(){tip.style.display='none';});
@@ -232,7 +232,7 @@ function renderRace(id){
   var k=r.kalshi||{}, bm=r.bucket_margins||{}, sh=r.shares||{};
   var h='<a class="back" href="#/">All races</a>';
   h+='<div class="dh"><div><h2>'+esc(r.label)+'</h2><div class="sub">'+esc(r.type)+' &middot; '+esc(r.rep)+' vs '+esc(r.other)+'</div></div>'+
-     '<div class="big '+cls(r.headline)+'">'+fmtM(r.headline)+'<small>VoteHub projection &middot; county sum '+fmtM(r.margin)+'</small></div></div>';
+     '<div class="big '+cls(r.headline)+'">'+fmtM(r.headline)+'<small>Projection &middot; county sum '+fmtM(r.margin)+'</small></div></div>';
   if(r.buckets.length){
     h+='<div class="buckets">'+r.buckets.map(function(b){
       var s=sh[b.key],m=bm[b.key];
@@ -249,7 +249,7 @@ function renderRace(id){
      '<div class="card"><h3>Win probability</h3><dl class="kv">'+
        '<dt>SoCal model win prob. (R)</dt><dd>'+(mw(r)!=null?(mw(r)*100).toFixed(1)+'%':'–')+'</dd>'+
        '<dt>Model 90% range</dt><dd>'+(LIVE&&LIVE.races&&LIVE.races[r.id]?fmtM(LIVE.races[r.id].p05)+' to '+fmtM(LIVE.races[r.id].p95):'–')+'</dd>'+
-       '<dt>VoteHub win probability (R)</dt><dd>'+(k.vh_win!=null?k.vh_win.toFixed(1)+'%':'–')+'</dd>'+
+       '<dt>Baseline win probability (R)</dt><dd>'+(k.vh_win!=null?k.vh_win.toFixed(1)+'%':'–')+'</dd>'+
        '<dt>Held by</dt><dd>'+esc(k.prev||'–')+'</dd>'+
        '<dt>Total projected votes</dt><dd>'+(r.votes||0).toLocaleString()+'</dd>'+
      '</dl></div>'+
