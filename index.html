@@ -55,7 +55,9 @@ section.grp h2 small{font:12px var(--mono);color:var(--ink2);font-weight:400}
 .tile .flag.wide{border-radius:0}
 .note{font:12px/1.5 var(--mono);color:var(--ink2);padding:18px 0 40px;max-width:780px}
 /* detail */
-.back{display:inline-block;margin:18px 0 6px;font:600 13px var(--sans);text-decoration:none;border-bottom:1px solid var(--ink)}
+.back{display:inline-block;margin:16px 0 8px;padding:7px 14px;font:600 13px var(--sans);text-decoration:none;border:1px solid var(--ink);border-radius:3px;background:var(--paper)}
+.back:hover{background:var(--ink);color:var(--sand)}
+h1 a.home{text-decoration:none;color:inherit}
 .dh{display:flex;flex-wrap:wrap;gap:6px 24px;align-items:baseline;justify-content:space-between;padding:4px 0 12px}
 .dh h2{font:600 clamp(34px,6vw,56px)/1 var(--serif);margin:0;letter-spacing:-.02em}
 .dh .sub{font:14px var(--sans);color:var(--ink2)}
@@ -108,7 +110,7 @@ th{font:600 12px var(--sans);color:var(--ink2);cursor:pointer;user-select:none;p
 </head>
 <body>
 <header class="top"><div class="wrap">
-  <h1>2026 Midterm <em>Board</em></h1>
+  <h1><a href="#/" class="home" aria-label="Back to all races">2026 Midterm <em>Board</em></a></h1>
   <div class="meta"><div id="gen"></div><div class="status"><span class="dot" id="dot"></span><span id="feed">Live feed not connected</span></div></div>
 </div></header>
 <main class="wrap" id="app"></main>
@@ -375,7 +377,7 @@ function renderRace(id){
   var r=DATA.races.filter(function(x){return x.id===id;})[0];
   if(!r){location.hash='';return;}
   var k=r.kalshi||{}, bm=r.bucket_margins||{}, sh=r.shares||{};
-  var h='<a class="back" href="#/">All races</a>';
+  var h='<a class="back" href="#/">&larr; Back to all races</a>';
   h+='<div class="dh"><div><h2>'+esc(r.label)+'</h2><div class="sub">'+esc(r.type)+' &middot; '+esc(r.rep)+' vs '+esc(r.other)+'</div></div>'+
      '<div class="big '+cls(r.headline)+'">'+fmtM(r.headline)+'<small>Projection &middot; county sum '+fmtM(r.margin)+'</small></div></div>';
   if(r.buckets.length){
