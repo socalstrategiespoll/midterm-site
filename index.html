@@ -396,7 +396,6 @@ function renderRace(id){
      '</div><div>'+
      '<div class="card"><h3>Win probability</h3><dl class="kv">'+
        '<dt>Win probability (R)</dt><dd>'+(mw(r)!=null?(mw(r)*100).toFixed(1)+'%':'–')+'</dd>'+
-       '<dt>Model 90% range</dt><dd>'+(LIVE&&LIVE.races&&LIVE.races[r.id]?fmtM(LIVE.races[r.id].p05)+' to '+fmtM(LIVE.races[r.id].p95):'–')+'</dd>'+
        '<span id="kalshiBox" style="display:contents">'+kalshiRows(r)+'</span>'+
        '<dt>Held by</dt><dd>'+esc(k.prev||'–')+'</dd>'+
        '<dt>Total projected votes</dt><dd>'+(r.votes||0).toLocaleString()+'</dd>'+
@@ -440,7 +439,7 @@ function renderLive(L){
   var b=document.getElementById('livebox'); if(!b)return;
   if(L.state==='pre'){b.innerHTML='Pre-election forecast. Counted votes appear here once results start coming in.';return;}
   b.style.borderStyle='solid';
-  b.innerHTML='<b>'+esc(L.status||'Live')+'</b><br>Projected margin '+fmtM(L.margin)+' &middot; 90% range '+fmtM(L.p05)+' to '+fmtM(L.p95)+' &middot; R win probability '+(L.win_prob*100).toFixed(1)+'%'+(L.reporting!=null?' &middot; about '+(L.reporting*100).toFixed(0)+'% of expected votes counted':'')+(L.call_ready?'<br>Model says this race is decided. Calls are made by hand.':'');
+  b.innerHTML='<b>'+esc(L.status||'Live')+'</b><br>Projected margin '+fmtM(L.margin)+' &middot; R win probability '+(L.win_prob*100).toFixed(1)+'%'+(L.reporting!=null?' &middot; about '+(L.reporting*100).toFixed(0)+'% of expected votes counted':'')+(L.call_ready?'<br>Model says this race is decided. Calls are made by hand.':'');
 }
 function route(){
   window.scrollTo(0,0);
