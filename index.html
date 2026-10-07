@@ -163,7 +163,7 @@ function renderBoard(){
     });
     h+='</div></section>';
   });
-  h+='<p class="note">Tile color is the projected two-party margin (R minus D) from our county-level projections. Early-vote and Election Day views come from our method models; races reported by town or township, and all-mail races, have no split and show n/a in those views. Model and Baseline are each the probability that the Republican wins. The model starts from the baseline margin and updates from county results on election night.</p>';
+  h+='<p class="note">Tile color is the projected two-party margin (R minus D) from our county-level projections. Early-vote and Election Day views come from our models; races reported by town or township, and all-mail races, have no split and show n/a in those views. Model and Baseline are each the probability that the Republican wins. The model starts from the baseline margin and updates from county results on election night.</p>';
   app.innerHTML=h;
   document.getElementById('segType').onclick=function(e){var t=e.target.getAttribute('data-t');if(t){state.type=t;renderBoard();}};
   document.getElementById('segView').onclick=function(e){var t=e.target.getAttribute('data-v');if(t){state.view=t;renderBoard();}};
@@ -253,7 +253,7 @@ function renderRace(id){
        '<dt>Held by</dt><dd>'+esc(k.prev||'–')+'</dd>'+
        '<dt>Total projected votes</dt><dd>'+(r.votes||0).toLocaleString()+'</dd>'+
      '</dl></div>'+
-     '<div class="card"><h3>Method</h3><p style="margin:0 0 6px">'+esc(r.method)+'</p>'+(r.notes?'<p style="margin:0;color:var(--ink2);font-size:13px">'+esc(r.notes)+'</p>':'')+'</div>'+
+
      '<div class="card"><h3>Election night</h3><div class="live-box" id="livebox">Live feed not connected. Once the engine is running, the projected final margin, reporting progress and win probability appear here.</div></div>'+
      '</div></div>';
   app.innerHTML=h;
