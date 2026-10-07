@@ -339,7 +339,7 @@ function mergeWayne(items,lr){ // map shapes: fold the Detroit row into Wayne
     var D=i.D+d.D,R=i.R+d.R;return {f:i.f,name:'Wayne (incl. Detroit)',D:D,R:R,m:mrg(D,R)};});
 }
 function renderLive(r,det){
-  var box=document.getElementById('livebox');if(!box)return;
+  var box=document.getElementById('livemaps');if(!box)return;
   if(!det||!det.counties){box.innerHTML='';return;}
   var lr=liveRows(r,det),rows=lr.rows;
   var sets=[
@@ -386,7 +386,7 @@ function renderRace(id){
       return '<div class="bk"><div class="n">'+esc(b.label)+'</div><div class="v '+(m==null?'':cls(m))+'">'+fmtM(m)+'</div><div class="s">'+(s==null?'':(s*100).toFixed(1)+'% of vote')+'</div><div class="bar"><b style="width:'+((s||0)*100)+'%"></b></div></div>';
     }).join('')+'</div>';
   }
-  h+='<div id="livebox"></div>';
+  h+='<div id="livemaps"></div>';
   h+='<div class="grid2"><div>'+
      '<div class="card"><h3>Counties</h3><div class="mapsel"><span class="seg" id="segMap">'+
        '<button aria-pressed="true" data-w="final">Final</button>'+
@@ -412,7 +412,7 @@ function renderRace(id){
     drawMap(r,w);
   };
   buildTable(r);
-  if(LIVE&&LIVE.races&&LIVE.races[id])renderLive(LIVE.races[id]);
+  if(LIVE&&LIVE.races&&LIVE.races[id])renderLiveBox(LIVE.races[id]);
 }
 function buildTable(r){
   var sortKey=3,asc=false;
@@ -435,11 +435,12 @@ function buildTable(r){
   }
   sortKey=1;asc=false;draw();
 }
-function renderLive(L){
+function renderLiveBox(L){
   var b=document.getElementById('livebox'); if(!b)return;
   if(L.state==='pre'){b.innerHTML='Pre-election forecast. Counted votes appear here once results start coming in.';return;}
   b.style.borderStyle='solid';
-  b.innerHTML='<b>'+esc(L.status||'Live')+'</b><br>Projected margin '+fmtM(L.margin)+' &middot; R win probability '+(L.win_prob*100).toFixed(1)+'%'+(L.reporting!=null?' &middot; about '+(L.reporting*100).toFixed(0)+'% of expected votes counted':'')+(L.call_ready?'<br>Model says this race is decided. Calls are made by hand.':'');
+  var wp=(L.win_prob!=null?L.win_prob:L.win_prob_R); var wpTxt=(wp!=null&&isFinite(wp))?(' &middot; R win probability '+(wp*100).toFixed(1)+'%'):'';
+  b.innerHTML='<b>'+esc(L.status||'Live')+'</b><br>Projected margin '+fmtM(L.margin)+wpTxt+(L.reporting!=null?' &middot; about '+(L.reporting*100).toFixed(0)+'% of expected votes counted':'')+(L.call_ready?'<br>Model says this race is decided. Calls are made by hand.':'');
 }
 function route(){
   window.scrollTo(0,0);
