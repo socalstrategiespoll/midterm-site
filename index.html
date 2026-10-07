@@ -87,6 +87,23 @@ th{font:600 12px var(--sans);color:var(--ink2);cursor:pointer;user-select:none;p
 .kv dt{color:var(--ink2)} .kv dd{margin:0;text-align:right}
 .live-box{border:1px dashed var(--ember);border-radius:3px;padding:12px 14px;font:13px/1.5 var(--mono);color:var(--ink2)}
 .mapsel{margin:0 0 8px}
+.livecard{margin-bottom:16px}
+.maps3{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px}
+@media(max-width:900px){.maps3{grid-template-columns:1fr}}
+.maps3 h4{font:600 15px var(--serif);margin:0 0 2px}
+.maps3 .sub{font:12px var(--mono);color:var(--ink2);margin-bottom:4px;min-height:34px}
+.totals{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px;margin:0 0 12px;font:13px var(--mono)}
+@media(max-width:900px){.totals{grid-template-columns:1fr}}
+.totals div{border:1px solid var(--line);border-radius:3px;padding:8px 10px;background:var(--sand)}
+.totals b{display:block;font:600 12px var(--sans);color:var(--ink2);margin-bottom:2px}
+.totals .r{color:var(--R)}.totals .d{color:var(--D)}
+.mapmini{width:100%;height:auto;display:block}
+.mapmini path{stroke:var(--paper);stroke-width:.7px;vector-effect:non-scaling-stroke}
+.mapmini path:hover{stroke:var(--ink);stroke-width:1.6px}
+.vt td,.vt th{font-size:12px}
+.vt th.g{text-align:center;border-left:1px solid var(--line)}
+.vt td.g{border-left:1px solid var(--line)}
+
 </style>
 </head>
 <body>
@@ -271,6 +288,88 @@ function drawMap(r,which){
   el.addEventListener('mouseleave',function(){tip.style.display='none';});
 }
 
+
+/* ---------- live county maps: counted / projected remaining / projected final, with raw votes ---------- */
+var DET={};
+function liveRows(r,det){
+  // one row per county from the engine: counted D/R, remaining D/R (projected), final D/R (projected); Detroit is folded into Wayne for the maps
+  var out=det.counties.map(function(c){
+    var n=c[3],rem=c[4],cD=c[8]||0,cR=c[9]||0,rmm=c[10],rmv=(rmm==null||!rem)?0:rmm*rem/100;
+    var remR=rem?(rem+rmv)/2:0,remD=rem?(rem-rmv)/2:0;
+    return {f:c[0],name:c[1],pct:c[2],cD:cD,cR:cR,rD:remD,rR:remR,rem:rem,n:cD+cR};
+  });
+  var det_=null,wy=null;out.forEach(function(x){if(x.f==='2622000')det_=x;if(x.f==='26163')wy=x;});
+  return {rows:out,detroit:det_,wayne:wy};
+}
+function mrg(D,R){var t=D+R;return t>0?(R-D)/t*100:null;}
+function fnum(x){return Math.round(x).toLocaleString();}
+function drawMini(boxId,items){
+  var feats=[];
+  items.forEach(function(it){var f=GEOIDX[it.f];if(f)feats.push({f:f,it:it});});
+  var box=document.getElementById(boxId);if(!box)return;
+  if(!feats.length){box.innerHTML='<p class="note">No county shapes.</p>';return;}
+  var bb=[999,999,-999,-999];
+  feats.forEach(function(x){rings(x.f.geometry).forEach(function(poly){poly.forEach(function(ring){ring.forEach(function(pt){
+    if(pt[0]<bb[0])bb[0]=pt[0];if(pt[1]<bb[1])bb[1]=pt[1];if(pt[0]>bb[2])bb[2]=pt[0];if(pt[1]>bb[3])bb[3]=pt[1];});});});});
+  var p=mkProj(bb),mnx=1e9,mny=1e9,mxx=-1e9,mxy=-1e9,paths=[];
+  feats.forEach(function(x){var d='';
+    rings(x.f.geometry).forEach(function(poly){poly.forEach(function(ring){
+      ring.forEach(function(pt,i){var q=project(pt,p);if(q[0]<mnx)mnx=q[0];if(q[0]>mxx)mxx=q[0];if(q[1]<mny)mny=q[1];if(q[1]>mxy)mxy=q[1];d+=(i?'L':'M')+q[0].toFixed(2)+' '+(-q[1]).toFixed(2);});d+='Z';});});
+    paths.push(d);});
+  var w=mxx-mnx,h=mxy-mny,pad=Math.max(w,h)*.02;
+  var svg='<svg class="mapmini" viewBox="'+(mnx-pad)+' '+(-mxy-pad)+' '+(w+2*pad)+' '+(h+2*pad)+'" role="img">';
+  feats.forEach(function(x,i){var it=x.it;
+    svg+='<path d="'+paths[i]+'" fill="'+color(it.m).bg+'" data-i="'+i+'"/>';});
+  svg+='</svg>';box.innerHTML=svg;
+  var el=box.firstChild;
+  el.addEventListener('mousemove',function(e){
+    var t=e.target;if(t.tagName!=='path'){tip.style.display='none';return;}
+    var it=feats[+t.getAttribute('data-i')].it;
+    tip.innerHTML='<b>'+esc(it.name)+'</b><br>'+(it.m==null?'no votes':fmtM(it.m))+'<br>D '+fnum(it.D)+' &middot; R '+fnum(it.R)+'<br>'+fnum(it.D+it.R)+' votes';
+    tip.style.display='block';tip.style.left=Math.min(window.innerWidth-250,e.clientX+14)+'px';tip.style.top=(e.clientY+14)+'px';});
+  el.addEventListener('mouseleave',function(){tip.style.display='none';});
+}
+function mergeWayne(items,lr){ // map shapes: fold the Detroit row into Wayne
+  if(!lr.detroit||!lr.wayne)return items.filter(function(i){return true;});
+  return items.filter(function(i){return i.f!=='2622000';}).map(function(i){
+    if(i.f!=='26163')return i;
+    var d=items.filter(function(x){return x.f==='2622000';})[0];
+    var D=i.D+d.D,R=i.R+d.R;return {f:i.f,name:'Wayne (incl. Detroit)',D:D,R:R,m:mrg(D,R)};});
+}
+function renderLive(r,det){
+  var box=document.getElementById('livebox');if(!box)return;
+  if(!det||!det.counties){box.innerHTML='';return;}
+  var lr=liveRows(r,det),rows=lr.rows;
+  var sets=[
+    {t:'Counted votes',k:'c',get:function(x){return {D:x.cD,R:x.cR};}},
+    {t:'Projected remaining votes',k:'r',get:function(x){return {D:x.rD,R:x.rR};}},
+    {t:'Projected final votes',k:'f',get:function(x){return {D:x.cD+x.rD,R:x.cR+x.rR};}}];
+  var tot=sets.map(function(s){var D=0,R=0;rows.forEach(function(x){var v=s.get(x);D+=v.D;R+=v.R;});return {D:D,R:R};});
+  var h='<div class="card livecard"><h3>Votes: counted, remaining and final</h3>';
+  var dn=(r.other||'D').replace(/ \(D\)$/,''),rn=r.rep||'R';
+  h+='<div class="totals">'+sets.map(function(s,i){var t=tot[i];
+    return '<div><b>'+s.t+'</b><span class="d">'+esc(dn)+' '+fnum(t.D)+'</span><br><span class="r">'+esc(rn)+' '+fnum(t.R)+'</span><br>Total '+fnum(t.D+t.R)+' &middot; '+fmtM(mrg(t.D,t.R))+'</div>';}).join('')+'</div>';
+  h+='<div class="maps3">'+sets.map(function(s){return '<div><h4>'+s.t+'</h4><div class="sub" id="sub'+s.k+'"></div><div id="map'+s.k+'"></div></div>';}).join('')+'</div>';
+  h+='<div class="tscroll" style="margin-top:12px"><table class="vt"><thead><tr><th rowspan="2">County</th><th rowspan="2">In</th><th colspan="3" class="g">Counted</th><th colspan="3" class="g">Projected remaining</th><th colspan="3" class="g">Projected final</th></tr><tr>'+
+     ['D','R','Total','D','R','Total','D','R','Total'].map(function(x,i){return '<th'+(i%3===0?' class="g"':'')+'>'+x+'</th>';}).join('')+'</tr></thead><tbody>'+
+     rows.slice().sort(function(a,b){return (b.cD+b.cR+b.rD+b.rR)-(a.cD+a.cR+a.rD+a.rR);}).map(function(x){
+       var f=function(D,R,first){return '<td'+(first?' class="g"':'')+'>'+fnum(D)+'</td><td>'+fnum(R)+'</td><td>'+fnum(D+R)+'</td>';};
+       return '<tr><td>'+esc(x.name)+'</td><td>'+(x.pct?Math.round(x.pct*100)+'%':'–')+'</td>'+f(x.cD,x.cR,1)+f(x.rD,x.rR,1)+f(x.cD+x.rD,x.cR+x.rR,1)+'</tr>';}).join('')+
+     '<tr style="font-weight:600"><td>Total</td><td></td>'+tot.map(function(t,i){return '<td'+' class="g">'+fnum(t.D)+'</td><td>'+fnum(t.R)+'</td><td>'+fnum(t.D+t.R)+'</td>';}).join('')+'</tr></tbody></table></div></div>';
+  box.innerHTML=h;
+  sets.forEach(function(s,i){
+    var items=rows.map(function(x){var v=s.get(x);return {f:x.f,name:x.name,D:v.D,R:v.R,m:(v.D+v.R)>0.5?mrg(v.D,v.R):null};});
+    drawMini('map'+s.k,mergeWayne(items,lr));
+    document.getElementById('sub'+s.k).textContent=(s.k==='c'&&tot[0].D+tot[0].R<1)?'No votes counted yet':'Margin: '+fmtM(mrg(tot[i].D,tot[i].R))+' on '+fnum(tot[i].D+tot[i].R)+' votes';
+  });
+}
+function loadLive(){
+  var m=location.hash.match(/^#\/race\/(.+)$/);if(!m||!window.ENGINE_URL)return;
+  var id=decodeURIComponent(m[1]),r=DATA.races.filter(function(x){return x.id===id;})[0];if(!r)return;
+  fetch(window.ENGINE_URL+'/api/race/'+id,{cache:'no-store'}).then(function(x){return x.ok?x.json():null;}).catch(function(){return null;})
+    .then(function(d){if(d&&location.hash.indexOf(id)>-1)renderLive(r,d);});
+}
+
 /* ---------- detail ---------- */
 function renderRace(id){
   var r=DATA.races.filter(function(x){return x.id===id;})[0];
@@ -285,6 +384,7 @@ function renderRace(id){
       return '<div class="bk"><div class="n">'+esc(b.label)+'</div><div class="v '+(m==null?'':cls(m))+'">'+fmtM(m)+'</div><div class="s">'+(s==null?'':(s*100).toFixed(1)+'% of vote')+'</div><div class="bar"><b style="width:'+((s||0)*100)+'%"></b></div></div>';
     }).join('')+'</div>';
   }
+  h+='<div id="livebox"></div>';
   h+='<div class="grid2"><div>'+
      '<div class="card"><h3>Counties</h3><div class="mapsel"><span class="seg" id="segMap">'+
        '<button aria-pressed="true" data-w="final">Final</button>'+
@@ -304,6 +404,7 @@ function renderRace(id){
      '</div></div>';
   app.innerHTML=h;
   drawMap(r,'final');
+  loadLive();
   document.getElementById('segMap').onclick=function(e){
     var w=e.target.getAttribute('data-w');if(!w)return;
     [].forEach.call(this.children,function(b){b.setAttribute('aria-pressed',b===e.target);});
@@ -373,6 +474,7 @@ function refreshLive(){
     });
 }
 setInterval(refreshLive,30000);
+setInterval(function(){if(DATA&&/^#\/race\//.test(location.hash))loadLive();},30000);
 setInterval(refreshKalshi,15000);
 load();
 })();
