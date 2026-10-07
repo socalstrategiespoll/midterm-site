@@ -124,10 +124,12 @@ function esc(s){return String(s==null?'':s).replace(/[&<>"]/g,function(c){return
 function mw(r){var l=LIVE&&LIVE.races&&LIVE.races[r.id];return l&&l.win_prob!=null?l.win_prob:null;}
 
 function kq(r){return KAL&&KAL.prices&&KAL.prices[r.id]||null;}
+function gapOf(r){var m=mw(r),q=kq(r);return (m!=null&&q&&q.mid!=null)?Math.abs(m*100-q.mid):null;}
 function tileOdds(r){
   var m=mw(r),q=kq(r),h='';
   if(m!=null)h+='Model <b>'+Math.round(m*100)+'%</b>';
   if(q&&q.mid!=null)h+=(h?'<br>':'')+'Kalshi <b>'+Math.round(q.mid)+'%</b>';
+  if(state.sort==='gap'&&m!=null&&q&&q.mid!=null){var d=m*100-q.mid;h+='<br>Gap <b>'+(d>0?'+':'')+d.toFixed(0)+'</b>';}
   return h;
 }
 function updateTiles(){
@@ -139,7 +141,7 @@ function kchg(q){var c=q&&q.change;if(c==null||c===0)return '';return '<span cla
 function refreshKalshi(){
   if(!window.ENGINE_URL)return;
   fetch(window.ENGINE_URL+'/api/kalshi',{cache:'no-store'}).then(function(r){return r.ok?r.json():null;}).catch(function(){return null;})
-    .then(function(k){if(!k||!k.prices)return;KAL=k;if(/^#\/race\//.test(location.hash))updateRaceKalshi();else updateTiles();});
+    .then(function(k){if(!k||!k.prices)return;KAL=k;if(/^#\/race\//.test(location.hash))updateRaceKalshi();else if(state.sort==='gap')renderBoard();else updateTiles();});
 }
 function updateRaceKalshi(){
   var m=location.hash.match(/^#\/race\/(.+)$/);if(!m)return;
@@ -176,6 +178,8 @@ function renderBoard(){
      ['All','Senate','Governor','House'].map(function(t){return '<button aria-pressed="'+(state.type===t)+'" data-t="'+t+'">'+t+'</button>';}).join('')+'</span></div>'+
      '<div><span class="clabel">Margin</span><span class="seg" id="segView">'+
      [['final','Final'],['early','Early vote'],['ed','Election Day']].map(function(v){return '<button aria-pressed="'+(state.view===v[0])+'" data-v="'+v[0]+'">'+v[1]+'</button>';}).join('')+'</span></div>'+
+     '<div><span class="clabel">Sort</span><span class="seg" id="segSort">'+
+     [['margin','Margin'],['gap','Most mispriced']].map(function(v){return '<button aria-pressed="'+(state.sort===v[0])+'" data-s="'+v[0]+'">'+v[1]+'</button>';}).join('')+'</span></div>'+
      '<div class="legend">D+20<i></i>R+20</div></div>';
   groups.forEach(function(g){
     var rs=races.filter(function(r){return r.type===g[0];});
@@ -183,9 +187,10 @@ function renderBoard(){
     rs.sort(function(a,b){
       var av=raceView(a),bv=raceView(b);
       if(av==null)av=-999; if(bv==null)bv=-999;
+      if(state.sort==='gap'){var ga=gapOf(a),gb=gapOf(b);if(ga==null)ga=-1;if(gb==null)gb=-1;return gb-ga||bv-av;}
       return state.sort==='margin'?bv-av:a.label.localeCompare(b.label);
     });
-    h+='<section class="grp"><h2>'+g[1]+'<small>'+rs.length+' races, sorted most Republican to most Democratic</small></h2><div class="tiles">';
+    h+='<section class="grp"><h2>'+g[1]+'<small>'+rs.length+' races, '+(state.sort==='gap'?'sorted by biggest gap between model and Kalshi':'sorted most Republican to most Democratic')+'</small></h2><div class="tiles">';
     rs.forEach(function(r){
       var v=raceView(r),c=color(v),k=r.kalshi||{};
       var w=k.vh_win!=null?(k.vh_win>=50?(k.prev==='R'||true?'':''):''):'';
@@ -199,6 +204,7 @@ function renderBoard(){
   h+='<p class="note">Tile color is the projected two-party margin (R minus D) from our county-level projections. Early-vote and Election Day views come from our models; races reported by town or township, and all-mail races, have no split and show n/a in those views. Each tile shows the model probability that the Republican wins and the live Kalshi market price for the same outcome. The model starts from our pre-election margin and updates from county results on election night.</p>';
   app.innerHTML=h;
   document.getElementById('segType').onclick=function(e){var t=e.target.getAttribute('data-t');if(t){state.type=t;renderBoard();}};
+  document.getElementById('segSort').onclick=function(e){var t=e.target.getAttribute('data-s');if(t){state.sort=t;renderBoard();}};
   document.getElementById('segView').onclick=function(e){var t=e.target.getAttribute('data-v');if(t){state.view=t;renderBoard();}};
 }
 
