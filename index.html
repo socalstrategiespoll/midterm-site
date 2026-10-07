@@ -159,11 +159,11 @@ function renderBoard(){
       var rw=k.vh_win; // baseline win prob
       h+='<a class="tile'+(c.dark?' dark':'')+'" style="background:'+c.bg+'" href="#/race/'+r.id+'">'+
          '<span class="l">'+esc(r.label)+'</span><span class="m">'+(v==null?'n/a':fmtM(v))+'</span>'+
-         '<span class="w">'+(mw(r)!=null?'Model '+Math.round(mw(r)*100)+'%':'')+'</span><span class="w">'+(k.vh_win!=null?'Baseline '+Math.round(k.vh_win)+'%':'')+'</span></a>';
+         '<span class="w">'+(mw(r)!=null?'Model '+Math.round(mw(r)*100)+'%':'')+'</span></a>';
     });
     h+='</div></section>';
   });
-  h+='<p class="note">Tile color is the projected two-party margin (R minus D) from our county-level projections. Early-vote and Election Day views come from our models; races reported by town or township, and all-mail races, have no split and show n/a in those views. Model and Baseline are each the probability that the Republican wins. The model starts from the baseline margin and updates from county results on election night.</p>';
+  h+='<p class="note">Tile color is the projected two-party margin (R minus D) from our county-level projections. Early-vote and Election Day views come from our models; races reported by town or township, and all-mail races, have no split and show n/a in those views. The percentage on each tile is the model probability that the Republican wins. The model starts from our pre-election margin and updates from county results on election night.</p>';
   app.innerHTML=h;
   document.getElementById('segType').onclick=function(e){var t=e.target.getAttribute('data-t');if(t){state.type=t;renderBoard();}};
   document.getElementById('segView').onclick=function(e){var t=e.target.getAttribute('data-v');if(t){state.view=t;renderBoard();}};
@@ -247,9 +247,8 @@ function renderRace(id){
      '<div class="card"><h3>County projections</h3><div class="tscroll"><table id="ct"></table></div></div>'+
      '</div><div>'+
      '<div class="card"><h3>Win probability</h3><dl class="kv">'+
-       '<dt>SoCal model win prob. (R)</dt><dd>'+(mw(r)!=null?(mw(r)*100).toFixed(1)+'%':'–')+'</dd>'+
+       '<dt>Win probability (R)</dt><dd>'+(mw(r)!=null?(mw(r)*100).toFixed(1)+'%':'–')+'</dd>'+
        '<dt>Model 90% range</dt><dd>'+(LIVE&&LIVE.races&&LIVE.races[r.id]?fmtM(LIVE.races[r.id].p05)+' to '+fmtM(LIVE.races[r.id].p95):'–')+'</dd>'+
-       '<dt>Baseline win probability (R)</dt><dd>'+(k.vh_win!=null?k.vh_win.toFixed(1)+'%':'–')+'</dd>'+
        '<dt>Held by</dt><dd>'+esc(k.prev||'–')+'</dd>'+
        '<dt>Total projected votes</dt><dd>'+(r.votes||0).toLocaleString()+'</dd>'+
      '</dl></div>'+
