@@ -188,8 +188,15 @@ function mkProj(bb){
 }
 function rings(g){return g.type==='Polygon'?[g.coordinates]:g.coordinates;}
 function drawMap(r,which){
-  var rows=r.counties, feats=[];
-  rows.forEach(function(c){var f=GEOIDX[c[0]];if(f)feats.push({f:f,row:c});});
+  var rows=r.counties, feats=[], det=null, wy=null;
+  rows.forEach(function(c){if(c[0]==='2622000')det=c;if(c[0]==='26163')wy=c;});
+  rows.forEach(function(c){
+    if(c===det)return;                                   // Detroit has no county shape: it is drawn inside Wayne
+    var row=c;
+    if(c===wy&&det){row=[c[0],'Wayne (incl. Detroit)',c[2]+det[2],c[3]+det[3]];   // Wayne's shape shows Detroit and the rest combined
+      var w1=c[2]+c[3],w2=det[2]+det[3];
+      for(var j=4;j<c.length;j++){row[j]=(c[j]!=null&&det[j]!=null)?(c[j]*w1+det[j]*w2)/(w1+w2):null;}}
+    var f=GEOIDX[c[0]];if(f)feats.push({f:f,row:row});});
   if(!feats.length){document.getElementById('mapbox').innerHTML='<p class="note">No county shapes for this race.</p>';return;}
   var bb=[999,999,-999,-999];
   feats.forEach(function(x){rings(x.f.geometry).forEach(function(poly){poly.forEach(function(ring){ring.forEach(function(pt){
