@@ -145,6 +145,10 @@ function mw(r){var l=LIVE&&LIVE.races&&LIVE.races[r.id];return l&&l.win_prob!=nu
 function kq(r){return KAL&&KAL.prices&&KAL.prices[r.id]||null;}
 function gapOf(r){var m=mw(r),q=kq(r);return (m!=null&&q&&q.mid!=null)?Math.abs(m*100-q.mid):null;}
 function tileOdds(r){
+  if(r.no_prob){var T=r.top4,L0=LIVE&&LIVE.races&&LIVE.races[r.id],Q=(L0&&L0.top4)||(T&&T.pre);
+    if(!Q||!Q.p_over_50)return 'Margin only';
+    var mj=T.cands.filter(function(c){return c.side;});
+    return mj.map(function(c){return esc(c.name.split(' ').pop())+' 50%+ <b>'+Math.round(Q.p_over_50[c.name]*100)+'%</b>';}).join('<br>');}
   var m=mw(r),q=kq(r),h='';
   if(m!=null)h+='Model <b>'+Math.round(m*100)+'%</b>';
   if(q&&q.mid!=null)h+=(h?'<br>':'')+'Kalshi <b>'+Math.round(q.mid)+'%</b>';
@@ -373,6 +377,14 @@ function loadLive(){
 }
 
 /* ---------- detail ---------- */
+function top4Card(r){
+  var t=r.top4; if(!t)return '';
+  var L=LIVE&&LIVE.races&&LIVE.races[r.id], q=(L&&L.top4)||t.pre; if(!q)return '';
+  var rows=t.cands.map(function(c){var v=q.shares[c.name],po=q.p_over_50&&q.p_over_50[c.name];
+    return '<tr><td>'+esc(c.name)+'</td><td>'+c.share.toFixed(1)+'%</td><td>'+(v==null?'&ndash;':v.toFixed(1)+'%')+'</td><td>'+(po==null?'':Math.round(po*100)+'%')+'</td></tr>';}).join('');
+  return '<div class="card"><h3>First-round vote share</h3><div class="tscroll"><table><thead><tr><th>Candidate</th><th>Baseline</th><th>Projected</th><th>Chance of 50%+</th></tr></thead><tbody>'+rows+'</tbody></table></div>'+
+    '<p class="note">Chance neither of the top two clears 50% in the first round (decided by ranked-choice): <b>'+Math.round(q.p_neither*100)+'%</b>. Baseline shares and the 260,000 turnout are our estimates.'+(L&&L.top4&&L.state!=='pre'?' Projected shares update as votes are counted.':'')+'</p></div>';
+}
 function renderRace(id){
   var r=DATA.races.filter(function(x){return x.id===id;})[0];
   if(!r){location.hash='';return;}
@@ -394,10 +406,14 @@ function renderRace(id){
      '</span></div><div id="mapbox"></div></div>'+
      '<div class="card"><h3>County projections</h3><div class="tscroll"><table id="ct"></table></div></div>'+
      '</div><div>'+
+     (r.no_prob?
+     top4Card(r)+'<div class="card"><h3>Projection</h3><dl class="kv">'+
+       '<dt>Win probability</dt><dd>Not shown (ranked-choice voting)</dd>'+
+       '<dt>Projection</dt><dd>Two-party margin only</dd>':
      '<div class="card"><h3>Win probability</h3><dl class="kv">'+
        '<dt>Win probability (R)</dt><dd>'+(mw(r)!=null?(mw(r)*100).toFixed(1)+'%':'–')+'</dd>'+
        '<span id="kalshiBox" style="display:contents">'+kalshiRows(r)+'</span>'+
-       '<dt>Held by</dt><dd>'+esc(k.prev||'–')+'</dd>'+
+       '<dt>Held by</dt><dd>'+esc(k.prev||'–')+'</dd>')+
        '<dt>Total projected votes</dt><dd>'+(r.votes||0).toLocaleString()+'</dd>'+
      '</dl></div>'+
 
