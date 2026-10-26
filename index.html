@@ -70,6 +70,9 @@ svg{display:block;width:100%;height:auto}
 .st.hasrace{cursor:pointer;filter:drop-shadow(0 0 5px color-mix(in srgb,var(--glow,transparent) 55%,transparent))}
 .st.hasrace:hover,.st.sel{stroke:var(--hi);stroke-width:2}
 .mesh{fill:none;stroke:var(--bg);stroke-width:.8;pointer-events:none}
+.cdp{fill:var(--panel-2);stroke:var(--line);stroke-width:.45}
+.cdp.tr{cursor:pointer;stroke-width:.8}
+.cdp.tr:hover,.cdp.tr.sel{stroke:var(--hi);stroke-width:2}
 .bub{cursor:pointer;stroke:var(--bg);stroke-width:1.4;filter:drop-shadow(0 0 6px color-mix(in srgb,var(--glow,transparent) 70%,transparent))}
 .bub:hover,.bub.sel{stroke:var(--hi);stroke-width:2.6}
 .ct{stroke:var(--bg);stroke-width:.4}
@@ -134,6 +137,10 @@ tr.row:focus-visible{outline:2px solid var(--hi);outline-offset:-2px}
       <button data-t="Senate" aria-pressed="false">Senate</button>
       <button data-t="Governor" aria-pressed="false">Governor</button>
     </div>
+    <div class="seg" id="shapeSeg" role="group" aria-label="House map style" hidden>
+      <button data-s="1" aria-pressed="true">Shapes</button>
+      <button data-s="0" aria-pressed="false">Bubbles</button>
+    </div>
     <span class="note" id="typeNote"></span>
     <div class="legend" aria-label="Color key"><span>Dem</span><span class="ramp" id="ramp"></span><span>Rep</span></div>
   </div>
@@ -171,7 +178,7 @@ tr.row:focus-visible{outline:2px solid var(--hi);outline-offset:-2px}
 <script>
 "use strict";
 var DATA, GEO, RACES = [], BYID = {};
-var state = {view:"maps", type:"House", sel:null, bucket:"blend", sortKey:"edge", sortDir:-1, bType:"All", hideWide:false};
+var state = {shapes:true, view:"maps", type:"House", sel:null, bucket:"blend", sortKey:"edge", sortDir:-1, bType:"All", hideWide:false};
 
 function $(s){return document.querySelector(s)}
 function el(n,a,h){var e=document.createElement(n);if(a)for(var k in a)e.setAttribute(k,a[k]);if(h!=null)e.innerHTML=h;return e}
@@ -249,8 +256,28 @@ function drawNational(){
     g.appendChild(p);
   });
   g.appendChild(sg("path",{d:GEO.nat,"class":"mesh"}));
+  var drawn={};
+  if(t==="House"&&state.shapes&&GEO.cd){
+    var gd=sg("g");svg.appendChild(gd);
+    var keys=Object.keys(GEO.cd),trk={};
+    list.forEach(function(r){trk[r.state+r.id.slice(-2)]=r});
+    keys.filter(function(k){return !trk[k]}).forEach(function(k){gd.appendChild(sg("path",{d:GEO.cd[k],"class":"cdp"}))});
+    keys.filter(function(k){return trk[k]}).forEach(function(k){
+      var r=trk[k];drawn[r.id]=1;
+      var p=sg("path",{d:GEO.cd[k],"class":"cdp tr"+(state.sel===r.id?" sel":""),tabindex:"0",role:"button","aria-label":r.label+" "+fmtM(r.headline)});
+      p.style.fill=colorFor(r.headline);
+      p.addEventListener("click",function(){pick(r.id)});
+      p.addEventListener("keydown",function(e){if(e.key==="Enter"||e.key===" "){e.preventDefault();pick(r.id)}});
+      p.addEventListener("mousemove",function(e){showTip(e,tipFor(r))});
+      p.addEventListener("mouseleave",hideTip);
+      gd.appendChild(p);
+    });
+    // selected shape on top so its outline is not clipped
+    var sel=gd.querySelector(".sel");if(sel)gd.appendChild(sel);
+    svg.appendChild(sg("path",{d:GEO.nat,"class":"mesh"}));
+  }
   if(t==="House"){
-    list.slice().sort(function(a,b){return b.votes-a.votes}).forEach(function(r){
+    list.filter(function(r){return !drawn[r.id]}).sort(function(a,b){return b.votes-a.votes}).forEach(function(r){
       var c=raceCenter(r),rad=7+Math.sqrt(r.votes/1000)*0.42;
       var b=sg("circle",{cx:c[0],cy:c[1],r:Math.min(rad,15).toFixed(1),"class":"bub"+(state.sel===r.id?" sel":""),tabindex:"0",role:"button","aria-label":r.label+" "+fmtM(r.headline)});
       b.style.fill=colorFor(r.headline);b.style.setProperty("--glow",glowFor(r.headline));
@@ -268,7 +295,9 @@ function drawNational(){
     c.addEventListener("click",function(){pick(r.id)});lst.appendChild(c);
   });
   host.appendChild(lst);
-  $("#typeNote").textContent=t==="House"?"Bubbles are districts, sized by projected votes.":"Click a state for the county map.";
+  $("#shapeSeg").hidden=(t!=="House");
+  var nb=Object.keys(drawn).length<list.length;
+  $("#typeNote").textContent=t==="House"?(state.shapes&&GEO.cd?(nb?"Districts are drawn as shapes. Bubbles mark races in states with new 2026 maps, sized by projected votes.":"Districts are drawn as shapes."):"Bubbles are districts, sized by projected votes."):"Click a state for the county map.";
 }
 function byStateAny(ab){return RACES.some(function(r){return r.state===ab&&r.type===state.type})}
 function tipFor(r){
@@ -534,6 +563,7 @@ function init(){
   $("#t-maps").addEventListener("click",function(){setView("maps")});
   $("#t-board").addEventListener("click",function(){setView("board")});
   document.querySelectorAll("#typeSeg button").forEach(function(b){b.addEventListener("click",function(){state.type=b.dataset.t;if(state.sel&&BYID[state.sel].type!==state.type)state.sel=null;setSeg("#typeSeg",state.type);drawNational();drawDetail()})});
+  document.querySelectorAll("#shapeSeg button").forEach(function(b){b.addEventListener("click",function(){state.shapes=b.dataset.s==="1";document.querySelectorAll("#shapeSeg button").forEach(function(x){x.setAttribute("aria-pressed",x===b)});drawNational()})});
   document.querySelectorAll("#bTypeSeg button").forEach(function(b){b.addEventListener("click",function(){state.bType=b.dataset.t;setSeg("#bTypeSeg",state.bType);drawBoard()})});
   $("#hideWide").addEventListener("change",function(e){state.hideWide=e.target.checked;drawBoard()});
   var m=location.hash.replace("#","").split("/");
