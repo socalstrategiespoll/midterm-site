@@ -43,6 +43,12 @@ nav.top .wrap{display:flex;align-items:center;gap:20px;height:56px}
 .lbar .d{background:var(--dem)}.lbar .r{background:var(--rep)}
 .lnum{display:flex;justify-content:space-between;font:800 30px/1.1 var(--disp);margin-top:6px;font-variant-numeric:tabular-nums}
 .lnum .d{color:var(--dem)}.lnum .r{color:var(--rep)}
+.lbar span.s{opacity:.42}
+.lsub{font-size:12.5px;color:var(--muted);margin-top:2px}
+.pmc{font-size:12.5px;color:var(--muted);margin-top:2px}
+.pmc b{color:var(--text);font-weight:600}
+.pmstat{font-size:12.5px;color:var(--muted)}
+.pmstat.bad{color:var(--rep)}
 .gap{margin:14px 0 0;padding:12px 14px;border:1px solid var(--line);border-radius:10px;background:var(--panel);font-size:14px;display:flex;flex-wrap:wrap;gap:4px 12px;align-items:baseline}
 .gap b{font:800 20px var(--disp)}
 .bar{display:flex;flex-wrap:wrap;gap:12px;align-items:center;padding:18px 0 10px}
@@ -145,8 +151,8 @@ tr.row:focus-visible{outline:2px solid var(--hi);outline-offset:-2px}
       <button data-t="Senate" aria-pressed="false">Senate</button>
       <button data-t="Governor" aria-pressed="false">Governor</button>
     </div>
-    <label class="chk"><input type="checkbox" id="hideWide"> Hide wide markets</label>
-    <span class="sub" id="boardNote"></span>
+    <label class="chk"><input type="checkbox" id="hideWide"> Hide thin markets</label>
+    <span class="sub" id="boardNote"></span><span class="pmstat" id="pmStatus"></span>
   </div>
   <div class="tw"><table id="tbl">
     <thead><tr id="thead"></tr></thead><tbody id="tbody"></tbody>
@@ -154,9 +160,10 @@ tr.row:focus-visible{outline:2px solid var(--hi);outline-offset:-2px}
 </section>
 
 <div class="foot">
-  <p>Race margins are two-party, Republican minus Democratic. Win probability is the chance the Republican wins, as published by VoteHub. Kalshi prices are in cents on the same side.</p>
+  <p>Race margins are two-party, Republican minus Democratic. VoteHub win probability is the chance the Republican wins. Polymarket prices are in cents for a Yes share on each party, read live from Polymarket in your browser.</p>
+  <p>The chamber bars count every seat. Races we model use our baseline margin, and every other seat goes to whichever party VoteHub gives the better chance. Senate seats and governorships not on the ballot this year count for the party that holds them. The paler part of each bar is those safe or off-year seats.</p>
   <p id="stamp"></p>
-  <p>Edge is the gap between the VoteHub probability and the price you would actually pay, using the ask to buy the Republican or the bid to buy the Democrat. A big edge can mean the market knows something VoteHub does not, so treat it as a place to look.</p>
+  <p>Edge is the gap between the VoteHub probability and what you would pay on Polymarket, using the ask on whichever side is cheaper against VoteHub. A big edge can mean the market knows something VoteHub does not, and thin markets can show gaps that nobody can actually trade, so treat it as a place to look.</p>
 </div>
 </main>
 <div class="tip" id="tip"></div>
@@ -198,9 +205,12 @@ function cMargin(r,c,key){
   var i=bucketKeys(r).indexOf(key);return i<0?null:c[4+i];
 }
 function edge(r){
-  var k=r.kalshi;if(!k||k.vh_win==null||k.bid==null||k.ask==null)return null;
-  var yes=k.vh_win-k.ask, no=k.bid-k.vh_win;
-  return yes>=no?{side:"R",e:yes,price:k.ask}:{side:"D",e:no,price:100-k.bid};
+  var p=PM[r.id];if(!p||!p.R||r.vh_win==null)return null;
+  var aR=p.R.ask, aD=(p.D&&p.D.ask!=null)?p.D.ask:(p.R.bid!=null?100-p.R.bid:null);
+  var yes=aR!=null?r.vh_win-aR:null, no=aD!=null?(100-r.vh_win)-aD:null;
+  if(yes==null&&no==null)return null;
+  if(no==null||(yes!=null&&yes>=no))return {side:"R",e:yes,price:aR,thin:p.thin};
+  return {side:"D",e:no,price:aD,thin:p.thin};
 }
 
 /* tooltip */
@@ -262,8 +272,8 @@ function drawNational(){
 }
 function byStateAny(ab){return RACES.some(function(r){return r.state===ab&&r.type===state.type})}
 function tipFor(r){
-  var k=r.kalshi;
-  return "<b>"+r.label+"</b><br>"+fmtM(r.headline)+(k&&k.vh_win!=null?"<br>R win "+pct(k.vh_win):"")+(k&&k.bid!=null?"<br>Kalshi "+k.bid+" / "+k.ask:"");
+  var p=PM[r.id];
+  return "<b>"+r.label+"</b><br>"+fmtM(r.headline)+(r.vh_win!=null?"<br>R win "+pct(r.vh_win):"")+(p&&p.R&&p.R.mid!=null?"<br>Polymarket R "+p.R.mid.toFixed(0)+"c":"");
 }
 
 /* ---------- detail ---------- */
@@ -273,15 +283,16 @@ function drawDetail(){
   var box=$("#detail");
   var r=BYID[state.sel];
   if(!r){box.innerHTML='<div class="empty">Pick a race on the map or from the list.</div>';return}
-  var k=r.kalshi,ed=edge(r);
+  var p=PM[r.id],ed=edge(r);
   var h='<h2>'+r.label+'</h2><div class="sub">'+r.rep+' (R) vs '+r.other+'</div>';
   h+='<div class="big '+cls(r.headline)+'">'+fmtM(r.headline)+'</div>';
   h+='<dl class="kv">';
-  if(k&&k.vh_win!=null){
-    h+='<dt>R win, VoteHub</dt><dd>'+pct(k.vh_win)+'</dd>';
-    if(k.bid!=null)h+='<dt>Kalshi bid / ask</dt><dd>'+k.bid+' / '+k.ask+(k.wide?' (wide)':'')+'</dd>';
-    if(ed)h+='<dt>Best side</dt><dd>'+(ed.side==="R"?"Buy R":"Buy D")+' for '+ed.price.toFixed(0)+'c, edge '+(ed.e>=0?"+":"")+ed.e.toFixed(1)+'c</dd>';
-  } else h+='<dt>Win probability</dt><dd>Not shown for this race</dd>';
+  if(r.vh_win!=null)h+='<dt>R win, VoteHub</dt><dd>'+pct(r.vh_win)+'</dd>';
+  else h+='<dt>Win probability</dt><dd>Not shown for this race</dd>';
+  if(p&&p.R){
+    h+='<dt>Polymarket R</dt><dd>'+(p.R.mid!=null?p.R.mid.toFixed(1)+'c':'n/a')+(p.R.bid!=null&&p.R.ask!=null?' ('+p.R.bid.toFixed(0)+' / '+p.R.ask.toFixed(0)+')':'')+(p.thin?' thin':'')+'</dd>';
+    if(ed&&ed.e!=null)h+='<dt>Best side</dt><dd>'+(ed.side==="R"?"Buy R":"Buy D")+' at '+ed.price.toFixed(0)+'c, edge '+(ed.e>=0?"+":"")+ed.e.toFixed(1)+'c</dd>';
+  } else h+='<dt>Polymarket</dt><dd>'+(PM_STATE.when?'no market found':'loading')+'</dd>';
   h+='<dt>Projected votes</dt><dd>'+Math.round(r.votes).toLocaleString()+'</dd>';
   if(r.buckets&&r.buckets.length){
     r.buckets.forEach(function(b){h+='<dt>'+b.label+'</dt><dd>'+fmtM(r.bucket_margins[b.key])+', '+(r.shares[b.key]*100).toFixed(0)+'% of vote</dd>'});
@@ -331,12 +342,14 @@ function drawCounty(r){
 var COLS=[
   {k:"label",t:"Race",s:function(r){return r.label}},
   {k:"margin",t:"Margin",s:function(r){return r.headline}},
-  {k:"vh",t:"VoteHub R win",s:function(r){return r.kalshi&&r.kalshi.vh_win}},
-  {k:"bid",t:"Bid",s:function(r){return r.kalshi&&r.kalshi.bid}},
-  {k:"ask",t:"Ask",s:function(r){return r.kalshi&&r.kalshi.ask}},
-  {k:"gap",t:"Mid minus VoteHub",s:function(r){return r.kalshi&&r.kalshi.diff}},
+  {k:"vh",t:"VoteHub R win",s:function(r){return r.vh_win}},
+  {k:"mid",t:"Polymarket R",s:function(r){var p=PM[r.id];return p&&p.R&&p.R.mid}},
+  {k:"bid",t:"Bid",s:function(r){var p=PM[r.id];return p&&p.R&&p.R.bid}},
+  {k:"ask",t:"Ask",s:function(r){var p=PM[r.id];return p&&p.R&&p.R.ask}},
+  {k:"gap",t:"Mid minus VoteHub",s:function(r){var p=PM[r.id];return p&&p.R&&p.R.mid!=null&&r.vh_win!=null?p.R.mid-r.vh_win:null}},
   {k:"side",t:"Best side",s:function(r){var e=edge(r);return e&&e.side}},
-  {k:"edge",t:"Edge, cents",s:function(r){var e=edge(r);return e&&e.e}}
+  {k:"edge",t:"Edge, cents",s:function(r){var e=edge(r);return e&&e.e}},
+  {k:"vol",t:"Volume",s:function(r){var p=PM[r.id];return p&&p.vol}}
 ];
 function drawBoardHead(){
   var tr=$("#thead");tr.innerHTML="";
@@ -349,34 +362,131 @@ function drawBoardHead(){
     th.appendChild(b);tr.appendChild(th);
   });
 }
+function money(v){if(v==null)return "n/a";if(v>=1e6)return "$"+(v/1e6).toFixed(1)+"M";if(v>=1e3)return "$"+Math.round(v/1e3)+"k";return "$"+Math.round(v)}
 function drawBoard(){
   drawBoardHead();
   var col=COLS.filter(function(c){return c.k===state.sortKey})[0];
-  var rows=RACES.filter(function(r){return (state.bType==="All"||r.type===state.bType)&&!(state.hideWide&&r.kalshi&&r.kalshi.wide)});
+  var rows=RACES.filter(function(r){var p=PM[r.id];return (state.bType==="All"||r.type===state.bType)&&!(state.hideWide&&(!p||p.thin))});
   rows.sort(function(a,b){
+    if(state.sortKey==="edge"){var ta=PM[a.id]&&PM[a.id].thin?1:0,tb=PM[b.id]&&PM[b.id].thin?1:0;if(ta!==tb)return ta-tb}
     var x=col.s(a),y=col.s(b);
     if(x==null&&y==null)return 0;if(x==null)return 1;if(y==null)return -1;
     if(typeof x==="string")return x.localeCompare(y)*state.sortDir;
     return (x-y)*state.sortDir;
   });
   var tb=$("#tbody");tb.innerHTML="";
-  var maxE=Math.max.apply(null,rows.map(function(r){var e=edge(r);return e?Math.abs(e.e):0}).concat([1]));
+  var maxE=Math.max.apply(null,rows.map(function(r){var e=edge(r);return e&&e.e!=null?Math.abs(e.e):0}).concat([1]));
+  var wait=PM_STATE.when?"n/a":"...";
   rows.forEach(function(r){
-    var k=r.kalshi,e=edge(r),tr=el("tr",{"class":"row",tabindex:"0"});
+    var p=PM[r.id],R=p&&p.R,e=edge(r),tr=el("tr",{"class":"row",tabindex:"0"});
     function td(h,c){var d=el("td",c?{"class":c}:null,h);tr.appendChild(d)}
     td("<b>"+r.label+"</b>");
     td('<span class="pill '+cls(r.headline)+'">'+fmtM(r.headline)+'</span>');
-    td(k&&k.vh_win!=null?pct(k.vh_win):"n/a","n");
-    td(k&&k.bid!=null?k.bid:"n/a","n");
-    td(k&&k.ask!=null?k.ask+(k.wide?" *":""):"n/a","n");
-    td(k&&k.diff!=null?(k.diff>0?"+":"")+k.diff.toFixed(1):"n/a","n");
-    td(e?'<span class="pill '+(e.side==="R"?"r":"d")+'">Buy '+e.side+'</span>':'<span class="pill x">none</span>');
-    td(e?'<span class="edgebar" style="width:'+Math.round(Math.max(e.e,0)/maxE*70)+'px;background:'+(e.side==="R"?"var(--rep)":"var(--dem)")+'"></span>'+(e.e>=0?"+":"")+e.e.toFixed(1):"n/a","n");
+    td(r.vh_win!=null?pct(r.vh_win):"n/a","n");
+    td(R&&R.mid!=null?R.mid.toFixed(1):wait,"n");
+    td(R&&R.bid!=null?R.bid.toFixed(0):wait,"n");
+    td(R&&R.ask!=null?R.ask.toFixed(0)+(p.thin?" *":""):wait,"n");
+    td(R&&R.mid!=null&&r.vh_win!=null?((R.mid-r.vh_win)>0?"+":"")+(R.mid-r.vh_win).toFixed(1):wait,"n");
+    td(e&&e.e!=null?'<span class="pill '+(e.side==="R"?"r":"d")+'">Buy '+e.side+'</span>':'<span class="pill x">none</span>');
+    td(e&&e.e!=null?'<span class="edgebar" style="width:'+Math.round(Math.max(e.e,0)/maxE*70)+'px;background:'+(e.side==="R"?"var(--rep)":"var(--dem)")+'"></span>'+(e.e>=0?"+":"")+e.e.toFixed(1):wait,"n");
+    td(p?money(p.vol):wait,"n");
     function go(){state.type=r.type;state.sel=r.id;setView("maps")}
     tr.addEventListener("click",go);tr.addEventListener("keydown",function(ev){if(ev.key==="Enter")go()});
     tb.appendChild(tr);
   });
-  $("#boardNote").textContent=rows.length+" races. * marks a wide market. Click a row to open its map.";
+  $("#boardNote").textContent=rows.length+" races. * marks a thin market. Click a row to open its map.";
+  drawPmStatus();
+}
+
+/* ---------- Polymarket ---------- */
+var PM={}, PMCH={}, PM_STATE={when:null,ok:0,unmatched:0,neterr:0,running:false,n:0};
+var NAMES={AL:"alabama",AK:"alaska",AZ:"arizona",AR:"arkansas",CA:"california",CO:"colorado",CT:"connecticut",DE:"delaware",FL:"florida",GA:"georgia",HI:"hawaii",ID:"idaho",IL:"illinois",IN:"indiana",IA:"iowa",KS:"kansas",KY:"kentucky",LA:"louisiana",ME:"maine",MD:"maryland",MA:"massachusetts",MI:"michigan",MN:"minnesota",MS:"mississippi",MO:"missouri",MT:"montana",NE:"nebraska",NV:"nevada",NH:"new-hampshire",NJ:"new-jersey",NM:"new-mexico",NY:"new-york",NC:"north-carolina",ND:"north-dakota",OH:"ohio",OK:"oklahoma",OR:"oregon",PA:"pennsylvania",RI:"rhode-island",SC:"south-carolina",SD:"south-dakota",TN:"tennessee",TX:"texas",UT:"utah",VT:"vermont",VA:"virginia",WA:"washington",WV:"west-virginia",WI:"wisconsin",WY:"wyoming"};
+var PM_API="https://gamma-api.polymarket.com/events?slug=";
+function pmSlugs(r){
+  var n=NAMES[r.state];
+  if(r.type==="House")return [r.state.toLowerCase()+"-"+r.id.slice(-2)+"-house-election-winner"];
+  if(r.type==="Senate")return [n+"-senate-election-winner",n+"-senate-special-election-winner",n+"-senate-winner-2026"];
+  return [n+"-governor-winner-2026",n+"-governor-election-winner",n+"-governor-election-winner-2026"];
+}
+function num(x){var v=parseFloat(x);return isFinite(v)?v:null}
+function firstPrice(m){var op=m.outcomePrices;if(typeof op==="string"){try{op=JSON.parse(op)}catch(e){op=null}}return op&&op.length?num(op[0]):null}
+function parseSide(m){
+  var bid=num(m.bestBid),ask=num(m.bestAsk),last=firstPrice(m);
+  var book=bid!=null&&ask!=null&&!(bid===0&&ask===1)&&ask>=bid;
+  var mid=book?(bid+ask)/2:last;
+  return {bid:bid==null?null:bid*100,ask:ask==null?null:ask*100,mid:mid==null?null:mid*100,spread:book?(ask-bid)*100:null};
+}
+function parseEvent(ev){
+  var out={vol:num(ev.volume)};
+  (ev.markets||[]).forEach(function(m){
+    var q=(m.question||"")+" "+(m.groupItemTitle||"");
+    var side=/republican/i.test(q)?"R":(/democrat/i.test(q)?"D":null);
+    if(!side||out[side])return;
+    out[side]=parseSide(m);
+  });
+  if(!out.R)return null;
+  out.thin=out.R.spread==null||out.R.spread>8;
+  return out;
+}
+function pmGet(slug){
+  return fetch(PM_API+encodeURIComponent(slug)).then(function(r){
+    if(!r.ok)throw new Error("http "+r.status);return r.json();
+  });
+}
+function pmRace(r){
+  var slugs=pmSlugs(r),i=0;
+  function step(){
+    if(i>=slugs.length)return Promise.resolve(null);
+    return pmGet(slugs[i++]).then(function(a){
+      var ev=Array.isArray(a)?a[0]:a;
+      var p=ev?parseEvent(ev):null;
+      if(p){p.slug=ev.slug;return p}
+      return step();
+    });
+  }
+  return step();
+}
+function pmChamber(){
+  var defs={House:"which-party-will-win-the-house-in-2026",Senate:"which-party-will-win-the-senate-in-2026"};
+  return Promise.all(Object.keys(defs).map(function(t){
+    return pmGet(defs[t]).then(function(a){var ev=Array.isArray(a)?a[0]:a;var p=ev&&parseEvent(ev);if(p)PMCH[t]=p}).catch(function(){});
+  }));
+}
+function pmLoad(){
+  if(PM_STATE.running)return;PM_STATE.running=true;
+  var q=RACES.slice(),ok=0,none=0,net=0,left=6;
+  PM_STATE.n=RACES.length;
+  function work(){
+    var r=q.shift();
+    if(!r||net>=4){if(--left===0)finish();return}
+    pmRace(r).then(function(p){if(p){PM[r.id]=p;ok++}else{delete PM[r.id];none++}},function(){net++}).then(work);
+  }
+  function finish(){
+    pmChamber().then(function(){
+      PM_STATE.ok=ok;PM_STATE.unmatched=none;PM_STATE.neterr=net;PM_STATE.running=false;
+      if(ok||none)PM_STATE.when=new Date();
+      try{localStorage.setItem("pm-cache",JSON.stringify({t:Date.now(),PM:PM,PMCH:PMCH}))}catch(e){}
+      pmRefreshViews();
+    });
+  }
+  for(var i=0;i<6;i++)work();
+}
+function pmRefreshViews(){
+  headlineStats();drawPmStatus();
+  if(state.view==="board")drawBoard();else drawDetail();
+}
+function drawPmStatus(){
+  var s=$("#pmStatus");if(!s)return;
+  s.className="pmstat";
+  if(PM_STATE.running&&!PM_STATE.when){s.textContent="Loading Polymarket...";return}
+  if(PM_STATE.neterr>=4&&!PM_STATE.ok){s.className="pmstat bad";s.textContent="Could not reach Polymarket from this browser.";return}
+  if(PM_STATE.when){s.textContent="Polymarket matched "+PM_STATE.ok+" of "+PM_STATE.n+" races, updated "+PM_STATE.when.toLocaleTimeString([],{hour:"numeric",minute:"2-digit"})}
+}
+function pmRestore(){
+  try{
+    var c=JSON.parse(localStorage.getItem("pm-cache")||"null");
+    if(c&&Date.now()-c.t<20*60*1000){PM=c.PM||{};PMCH=c.PMCH||{};PM_STATE.when=new Date(c.t);PM_STATE.ok=Object.keys(PM).length;PM_STATE.n=RACES.length}
+  }catch(e){}
 }
 
 /* ---------- shell ---------- */
@@ -388,22 +498,35 @@ function setView(v){
   try{history.replaceState(null,"","#"+v+(v==="maps"&&state.sel?"/"+state.sel:""))}catch(e){}
 }
 function setSeg(sel,val){document.querySelectorAll(sel+" button").forEach(function(b){b.setAttribute("aria-pressed",b.dataset.t===val)})}
+function chamberTotals(t){
+  var own=racesOfType(t),safe=(DATA.safe||[]).filter(function(x){return x.type===t});
+  var ho=((DATA.chambers||{})[t]||{}).holdover||{D:0,R:0};
+  var cr=own.filter(function(x){return x.headline>0}).length,cd=own.length-cr;
+  var sr=safe.filter(function(x){return x.m>0}).length,sd=safe.length-sr;
+  return {cd:cd,cr:cr,sd:sd+ho.D,sr:sr+ho.R,contested:own.length,safe:safe.length+ho.D+ho.R,seats:own.length+safe.length+ho.D+ho.R};
+}
 function headlineStats(){
-  var out=[];
+  var out=[],MAJ={House:218,Senate:51};
   ["House","Senate","Governor"].forEach(function(t){
-    var l=racesOfType(t),r=l.filter(function(x){return x.headline>0}).length,d=l.length-r;
-    out.push('<div><h2>'+t+' <em>'+l.length+' races</em></h2><div class="lbar" role="img" aria-label="'+d+' lean Democratic, '+r+' lean Republican"><span class="d" style="flex:'+d+'"></span><span class="r" style="flex:'+r+'"></span></div><div class="lnum"><span class="d">'+d+' D</span><span class="r">'+r+' R</span></div></div>');
+    var c=chamberTotals(t),d=c.cd+c.sd,r=c.cr+c.sr;
+    var pm=PMCH[t]&&PMCH[t].D&&PMCH[t].R?'<div class="pmc">Polymarket control: <b>D '+PMCH[t].D.mid.toFixed(1)+'%</b> / R '+PMCH[t].R.mid.toFixed(1)+'%</div>':'';
+    out.push('<div><h2>'+t+' <em>'+c.seats+' seats'+(MAJ[t]?', '+MAJ[t]+' to win':'')+'</em></h2>'
+      +'<div class="lbar" role="img" aria-label="'+d+' Democratic, '+r+' Republican"><span class="d s" style="flex:'+c.sd+'"></span><span class="d" style="flex:'+c.cd+'"></span><span class="r" style="flex:'+c.cr+'"></span><span class="r s" style="flex:'+c.sr+'"></span></div>'
+      +'<div class="lnum"><span class="d">'+d+' D</span><span class="r">'+r+' R</span></div>'
+      +'<div class="lsub">'+c.contested+' modeled, '+c.safe+' safe or not up</div>'+pm+'</div>');
   });
   $("#stats").innerHTML=out.join("");
-  var big=RACES.map(function(r){var e=edge(r);return e&&!r.kalshi.wide?{r:r,e:e}:null}).filter(Boolean).sort(function(a,b){return b.e.e-a.e.e})[0];
-  if(big){var g=$("#gapline");g.hidden=false;g.innerHTML='Widest tradable gap: <b>'+big.r.label+'</b> buy '+big.e.side+' for +'+big.e.e.toFixed(1)+' cents'}
+  var g=$("#gapline");
+  var big=RACES.map(function(r){var e=edge(r);return e&&e.e!=null&&!e.thin?{r:r,e:e}:null}).filter(Boolean).sort(function(a,b){return b.e.e-a.e.e})[0];
+  if(big){g.hidden=false;g.innerHTML='Widest tradable gap on Polymarket: <b>'+big.r.label+'</b> buy '+big.e.side+' at '+big.e.price.toFixed(0)+' cents, edge +'+big.e.e.toFixed(1)+' cents'}
+  else g.hidden=true;
 }
 function init(){
   tip=$("#tip");
   RACES=DATA.races;RACES.forEach(function(r){BYID[r.id]=r});
   var upd=DATA.updated||DATA.generated;
   $("#stamp").textContent="Baselines: "+upd+".";
-  drawRamp();headlineStats();
+  pmRestore();drawRamp();headlineStats();
   $("#t-maps").addEventListener("click",function(){setView("maps")});
   $("#t-board").addEventListener("click",function(){setView("board")});
   document.querySelectorAll("#typeSeg button").forEach(function(b){b.addEventListener("click",function(){state.type=b.dataset.t;if(state.sel&&BYID[state.sel].type!==state.type)state.sel=null;setSeg("#typeSeg",state.type);drawNational();drawDetail()})});
@@ -412,6 +535,8 @@ function init(){
   var m=location.hash.replace("#","").split("/");
   if(m[1]&&BYID[m[1]]){state.sel=m[1];state.type=BYID[m[1]].type}
   setView(m[0]==="board"?"board":"maps");
+  pmLoad();
+  setInterval(function(){if(!document.hidden)pmLoad()},60000);
   matchMedia("(prefers-color-scheme: dark)").addEventListener("change",function(){drawRamp();setView(state.view)});
 }
 Promise.all([fetch("data.json").then(function(r){return r.json()}),fetch("geo.json").then(function(r){return r.json()})]).then(function(a){
