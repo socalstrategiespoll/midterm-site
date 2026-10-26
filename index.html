@@ -416,11 +416,15 @@ function parseSide(m){
   var mid=book?(bid+ask)/2:last;
   return {bid:bid==null?null:bid*100,ask:ask==null?null:ask*100,mid:mid==null?null:mid*100,spread:book?(ask-bid)*100:null};
 }
-function parseEvent(ev){
+/* races where the Democratic side of the model is an independent (counted as D) */
+var PM_D_ALIAS={S2026NE02:/osborn|independent/i};
+function parseEvent(ev,dRe){
   var out={vol:num(ev.volume)};
   (ev.markets||[]).forEach(function(m){
     var q=(m.question||"")+" "+(m.groupItemTitle||"");
-    var side=/republican/i.test(q)?"R":(/democrat/i.test(q)?"D":null);
+    var side;
+    if(dRe){side=dRe.test(q)?"D":(/republican|ricketts/i.test(q)?"R":null)}
+    else side=/republican/i.test(q)?"R":(/democrat/i.test(q)?"D":null);
     if(!side||out[side])return;
     out[side]=parseSide(m);
   });
@@ -439,7 +443,7 @@ function pmRace(r){
     if(i>=slugs.length)return Promise.resolve(null);
     return pmGet(slugs[i++]).then(function(a){
       var ev=Array.isArray(a)?a[0]:a;
-      var p=ev?parseEvent(ev):null;
+      var p=ev?parseEvent(ev,PM_D_ALIAS[r.id]):null;
       if(p){p.slug=ev.slug;return p}
       return step();
     });
