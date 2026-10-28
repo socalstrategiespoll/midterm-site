@@ -7,20 +7,21 @@
 <meta name="description" content="2026 midterm county models: House, Senate and governor maps, with Kalshi prices set against the VoteHub forecast.">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700;12..96,800&family=Instrument+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Anton&family=IBM+Plex+Mono:wght@400;600&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
 <style>
 :root{
-  --bg:#060A13;--panel:#0C1424;--panel-2:#111C32;--line:#1D2A45;
-  --text:#E6EDFA;--muted:#8394B0;--hi:#FFC247;
-  --dem:#3E8BFF;--rep:#FF4B5C;--mid:#1B2640;--off:#101A2E;--ink:#02050B;
-  --disp:'Bricolage Grotesque','Arial Narrow',system-ui,sans-serif;
-  --body:'Instrument Sans',system-ui,sans-serif;
+  --bg:#E8EAE3;--panel:#F1F2EC;--panel-2:#E0E3DA;--line:#C7CCC2;
+  --text:#14181A;--muted:#5A625F;--hi:#8A3B24;
+  --dem:#1F4E9C;--rep:#A8322A;--mid:#D3D7CC;--off:#D9DCD2;--ink:#14181A;
+  --disp:'Anton','Arial Narrow',Impact,sans-serif;
+  --body:'IBM Plex Sans',system-ui,sans-serif;
+  --mono:'IBM Plex Mono',ui-monospace,monospace;
   --max:1240px;
 }
-@media (prefers-color-scheme:light){
-  :root:not([data-theme="dark"]){
-    --bg:#F3F5FA;--panel:#FFFFFF;--panel-2:#EAEFF8;--line:#D3DBEA;--text:#101829;--muted:#5B6A86;--hi:#C77D00;
-    --dem:#1F5FD1;--rep:#C8283A;--mid:#E4E9F3;--off:#E7ECF5;--ink:#101829;
+@media (prefers-color-scheme:dark){
+  :root:not([data-theme="light"]){
+    --bg:#14181A;--panel:#1B2124;--panel-2:#232A2D;--line:#343C3F;--text:#E8EAE3;--muted:#99A29E;--hi:#D8C48E;
+    --dem:#5B8FE0;--rep:#E0605A;--mid:#2A3236;--off:#20272A;--ink:#E8EAE3;
   }
 }
 *{box-sizing:border-box}
@@ -112,6 +113,39 @@ tr.row:focus-visible{outline:2px solid var(--hi);outline-offset:-2px}
 .foot p{max-width:78ch;margin:0 0 8px}
 [hidden]{display:none!important}
 @media (prefers-reduced-motion:no-preference){.bub,.st,.ct{transition:stroke-width .12s,stroke .12s}}
+
+/* ---- flat, paper-and-rule look (carried over from the Michigan Senate model site) ---- */
+nav.top{background:var(--bg);backdrop-filter:none;border-bottom:2px solid var(--text)}
+.brand{font:400 24px/1 var(--disp);letter-spacing:.01em;text-transform:uppercase}
+.brand i{border-radius:0;width:20px;height:10px}
+.tabs,.seg{border-radius:0;border-color:var(--text);background:none;padding:0;gap:0}
+.tab,.seg button{border-radius:0;font:600 12px var(--mono);letter-spacing:.1em;text-transform:uppercase;padding:8px 16px}
+.tab[aria-selected="true"],.seg button[aria-pressed="true"]{background:var(--text);color:var(--bg)}
+.lean{gap:1px;background:var(--line);border:1px solid var(--line);padding:0;margin-top:22px}
+.lean>*{background:var(--panel);padding:14px 16px}
+.lean h2{font:600 11px var(--mono);letter-spacing:.13em;text-transform:uppercase}
+.lbar{height:12px;border-radius:0}
+.lnum{font:400 36px/1.05 var(--disp);letter-spacing:.005em}
+.gap{border-radius:0;border-left:3px solid var(--hi);background:var(--panel)}
+.gap b{font:400 22px var(--disp)}
+.card{border-radius:0;border-color:var(--line)}
+.card.mapc{background:var(--panel)}
+.card h2{font:400 32px/1 var(--disp);letter-spacing:.005em;text-transform:uppercase}
+.card h3{font:600 11px var(--mono);letter-spacing:.13em;text-transform:uppercase;border-top:1px solid var(--line);padding-top:12px}
+.big{font:400 64px/.95 var(--disp);letter-spacing:0}
+.kv dt{font:600 11px var(--mono);letter-spacing:.1em;text-transform:uppercase;padding-top:2px}
+.st.hasrace,.bub{filter:none}
+.st{stroke:var(--panel)}
+.chip,.pill,.edgebar,.ramp{border-radius:0}
+.chip{font-family:var(--mono);font-size:12px}
+.chip[aria-pressed="true"]{background:var(--text);color:var(--bg);border-color:var(--text)}
+.pill{font:600 12px var(--mono)}
+.tw{border-radius:0;border:1px solid var(--line)}
+th{font:600 11px var(--mono);letter-spacing:.1em;text-transform:uppercase;background:var(--panel-2);border-bottom:2px solid var(--text)}
+.tip{border-radius:0;background:#14181A;color:#E8EAE3;border:1px solid #14181A}
+.tip b{color:#D8C48E}
+.foot{border-top:2px solid var(--text)}
+.legend,.bar .note,.sub,.lsub,.pmc{font-family:var(--mono);font-size:11.5px}
 </style>
 </head>
 <body>
