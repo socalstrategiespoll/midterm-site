@@ -388,11 +388,11 @@ var LIVE={};
 function engineBase(){var q=new URLSearchParams(location.search).get("engine");return (q||ENGINE_URL||"").replace(/\/$/,"")}
 function loadLive(id){
   var base=engineBase();if(!base||!id)return;
-  fetch(base+"/api/race/"+encodeURIComponent(id),{cache:"no-store"}).then(function(x){if(!x.ok)throw new Error("HTTP "+x.status);return x.json()}).then(function(res){
+  fetch(base+"/api/race/"+encodeURIComponent(id)+"?t="+Date.now()).then(function(x){if(!x.ok)throw new Error("HTTP "+x.status);return x.json()}).then(function(res){
     LIVE[id]={res:res,when:Date.now(),err:null};
     if(state.view==="race"&&state.sel===id)drawRace();
   }).catch(function(e){
-    LIVE[id]=Object.assign(LIVE[id]||{},{err:String(e.message||e),tried:Date.now()});
+    LIVE[id]=Object.assign(LIVE[id]||{},{err:(e instanceof TypeError?"the browser could not connect to "+base+", the service may be asleep or blocked":String(e.message||e)),tried:Date.now()});
     if(state.view==="race"&&state.sel===id)drawRace();
   });
 }
