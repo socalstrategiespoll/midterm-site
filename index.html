@@ -534,12 +534,21 @@ function swingChart(r,rows){
   });
   return svg+'</svg><div class="sub">The 12 largest reporting counties. Each bar is how far the county is running from what the model expected it to give, in margin points.</div>';
 }
-function orderBar(res){
-  var g=res.regimes;if(!g)return '';
-  var names=["Early votes first","Mixed order","Election Day first"],cols=["var(--text)","var(--muted)","var(--line)"];
-  var h='<div class="ord">';g.forEach(function(v,i){h+='<span style="flex:'+Math.max(v,.001)+';background:'+cols[i]+';color:'+(i===0?"var(--bg)":"var(--text)")+'" title="'+names[i]+'">'+(v>=.12?(v*100).toFixed(0)+'%':'')+'</span>'});
-  h+='</div><div class="legend2"><span>'+names[0]+' '+(g[0]*100).toFixed(0)+'%</span><span>'+names[1]+' '+(g[1]*100).toFixed(0)+'%</span><span>'+names[2]+' '+(g[2]*100).toFixed(0)+'%</span></div>';
-  return h;
+function leftBar(r,res){
+  var bks=r.buckets||[];if(!bks.length||!res)return '';
+  var ms=res.methods||[],cols=["var(--text)","var(--muted)","var(--hi)","var(--line)"],rem=[],tot=0,have=ms.some(function(m){return m.expected>0});
+  bks.forEach(function(b){
+    var m=ms.filter(function(x){return x.key===b.key})[0],v=have&&m?Math.max(m.expected-m.counted,0):(r.shares[b.key]||0);
+    rem.push(v);tot+=v;
+  });
+  if(tot<=0)return '<div class="sub">Nothing left to count in counties that report by method.</div>';
+  var bar='<div class="ord">',lg='<div class="legend2">';
+  bks.forEach(function(b,i){
+    var f=rem[i]/tot,exp=(r.shares[b.key]||0)*100;
+    bar+='<span style="flex:'+Math.max(f,.001)+';background:'+cols[i%4]+';color:'+(i<3&&i!==3?"var(--bg)":"var(--text)")+'" title="'+b.label+'">'+(f>=.08?(f*100).toFixed(0)+'%':'')+'</span>';
+    lg+='<span><i class="lg" style="background:'+cols[i%4]+'"></i>'+b.label+' '+(f*100).toFixed(1)+'% of what is left'+(have?' (was '+exp.toFixed(0)+'% of all votes)':'')+(have?', '+nf(rem[i])+' votes':'')+'</span>';
+  });
+  return bar+'</div>'+lg+'</div><div class="sub" style="margin-top:6px">'+(have?'Based on the '+res.counties_with_method_data+' counties that report by method: expected votes minus votes counted, by method.':'No method data yet, so this is the pre-election split.')+'</div>';
 }
 function drawRace(){
   var r=BYID[state.sel],box=$("#racepage");
@@ -629,7 +638,7 @@ function drawRace(){
     h+='</dl>';
     h+='<div class="rp-grid3"><div class="card"><h3 style="margin-top:0;border:0;padding:0">Counted margin against baseline</h3>'+scatterChart(r,rows)+'</div>';
     h+='<div class="card"><h3 style="margin-top:0;border:0;padding:0">Who is running ahead or behind</h3>'+swingChart(r,rows)+'</div></div>';
-    h+='<div class="card" style="margin-top:18px"><h3 style="margin-top:0;border:0;padding:0">Counting order the model expects</h3>'+orderBar(res)+'<div class="sub" style="margin-top:6px">How likely each counting order is, judged from how counties have reported so far. It decides which ballots the model assumes are still out.</div></div>';
+    if(bks.length)h+='<div class="card" style="margin-top:18px"><h3 style="margin-top:0;border:0;padding:0">Votes left by method</h3>'+leftBar(r,res)+'</div>';
     if(p&&p.R||mw(r)!=null||r.vh_win!=null){
       h+='<div class="card" style="margin-top:18px"><h3 style="margin-top:0;border:0;padding:0">Against the market</h3><dl class="kv">';
       if(mw(r)!=null)h+='<dt>Model, '+rn+' wins</dt><dd>'+pct(mw(r))+'</dd>';
