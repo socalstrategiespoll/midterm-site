@@ -70,9 +70,6 @@ svg{display:block;width:100%;height:auto}
 .st.hasrace{cursor:pointer;filter:drop-shadow(0 0 5px color-mix(in srgb,var(--glow,transparent) 55%,transparent))}
 .st.hasrace:hover,.st.sel{stroke:var(--hi);stroke-width:2}
 .mesh{fill:none;stroke:var(--bg);stroke-width:.8;pointer-events:none}
-.cdp{fill:var(--panel-2);stroke:var(--line);stroke-width:.45}
-.cdp.tr{cursor:pointer;stroke-width:.8}
-.cdp.tr:hover,.cdp.tr.sel{stroke:var(--hi);stroke-width:2}
 .bub{cursor:pointer;stroke:var(--bg);stroke-width:1.4;filter:drop-shadow(0 0 6px color-mix(in srgb,var(--glow,transparent) 70%,transparent))}
 .bub:hover,.bub.sel{stroke:var(--hi);stroke-width:2.6}
 .ct{stroke:var(--bg);stroke-width:.4}
@@ -113,38 +110,6 @@ tr.row:focus-visible{outline:2px solid var(--hi);outline-offset:-2px}
 .edgebar{display:inline-block;height:8px;border-radius:2px;vertical-align:middle;margin-right:8px}
 .foot{padding:22px 0 44px;color:var(--muted);font-size:13px;border-top:1px solid var(--line)}
 .foot p{max-width:78ch;margin:0 0 8px}
-.back{display:inline-flex;align-items:center;gap:6px;color:var(--muted);font-size:14px;text-decoration:none;margin:18px 0 10px;padding:4px 0}
-.back:hover{color:var(--text)}
-.back:focus-visible{outline:2px solid var(--hi);outline-offset:2px}
-main.race .lean,main.race .gap{display:none}
-.rhead{display:flex;flex-wrap:wrap;gap:8px 18px;align-items:flex-end;justify-content:space-between}
-.rhead h1{font:800 44px/1 var(--disp);letter-spacing:-1px;margin:0}
-.status{display:inline-block;border-radius:6px;padding:3px 10px;font-size:12.5px;font-weight:700;background:var(--panel-2);color:var(--muted)}
-.status.live{background:color-mix(in srgb,var(--hi) 24%,transparent);color:var(--hi)}
-.status.done{background:color-mix(in srgb,var(--dem) 20%,transparent);color:var(--text)}
-.feed{font-size:13px;color:var(--muted);margin:6px 0 0}
-.feed.bad{color:var(--rep)}
-.tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:12px;margin:16px 0}
-.tile{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:12px 14px}
-.tile .k{font-size:12.5px;color:var(--muted)}
-.tile .v{font:800 28px/1.1 var(--disp);margin-top:4px;font-variant-numeric:tabular-nums;letter-spacing:-.5px}
-.tile .n{font-size:12px;color:var(--muted);margin-top:2px}
-.bigrow{display:flex;flex-wrap:wrap;gap:6px 22px;align-items:baseline}
-.bigrow .big{margin:0}
-.fan{margin-top:6px}
-.fan text{fill:var(--muted);font:12px var(--body)}
-.fan .zero{stroke:var(--muted);stroke-dasharray:3 3}
-.rtable{margin-top:4px}
-.rtable table{min-width:820px}
-.sideTbl{display:flex;flex-direction:column}
-.srow{appearance:none;border:0;border-bottom:1px solid var(--line);background:none;color:var(--text);font:inherit;display:grid;grid-template-columns:1fr auto 64px;gap:10px;align-items:center;padding:8px 4px;cursor:pointer;text-align:left}
-.srow:hover{background:var(--panel-2)}
-.srow:focus-visible{outline:2px solid var(--hi);outline-offset:-2px}
-.srow .sub{text-align:right}
-#detail{max-height:760px;overflow:auto}
-.rhint{display:none;margin-top:6px}
-@media (max-width:700px){.rhint{display:block}}
-.sect{margin:22px 0 8px;font:700 18px var(--disp);letter-spacing:-.3px}
 [hidden]{display:none!important}
 @media (prefers-reduced-motion:no-preference){.bub,.st,.ct{transition:stroke-width .12s,stroke .12s}}
 </style>
@@ -168,10 +133,6 @@ main.race .lean,main.race .gap{display:none}
       <button data-t="House" aria-pressed="true">House</button>
       <button data-t="Senate" aria-pressed="false">Senate</button>
       <button data-t="Governor" aria-pressed="false">Governor</button>
-    </div>
-    <div class="seg" id="shapeSeg" role="group" aria-label="House map style" hidden>
-      <button data-s="1" aria-pressed="true">Shapes</button>
-      <button data-s="0" aria-pressed="false">Bubbles</button>
     </div>
     <span class="note" id="typeNote"></span>
     <div class="legend" aria-label="Color key"><span>Dem</span><span class="ramp" id="ramp"></span><span>Rep</span></div>
@@ -198,8 +159,6 @@ main.race .lean,main.race .gap{display:none}
   </table></div>
 </section>
 
-<section id="view-race" hidden><a class="back" href="#maps">&larr; All races</a><div id="racepage"></div></section>
-
 <div class="foot">
   <p>Race margins are two-party, Republican minus Democratic. VoteHub win probability is the chance the Republican wins. Polymarket prices are in cents for a Yes share on each party, read live from Polymarket in your browser.</p>
   <p>The chamber bars count every seat. Races we model use our baseline margin, and every other seat goes to whichever party VoteHub gives the better chance. Senate seats and governorships not on the ballot this year count for the party that holds them. The paler part of each bar is those safe or off-year seats.</p>
@@ -212,7 +171,7 @@ main.race .lean,main.race .gap{display:none}
 <script>
 "use strict";
 var DATA, GEO, RACES = [], BYID = {};
-var state = {shapes:true, view:"maps", type:"House", sel:null, bucket:"blend", sortKey:"edge", sortDir:-1, bType:"All", hideWide:false};
+var state = {view:"maps", type:"House", sel:null, bucket:"blend", sortKey:"edge", sortDir:-1, bType:"All", hideWide:false};
 
 function $(s){return document.querySelector(s)}
 function el(n,a,h){var e=document.createElement(n);if(a)for(var k in a)e.setAttribute(k,a[k]);if(h!=null)e.innerHTML=h;return e}
@@ -290,28 +249,8 @@ function drawNational(){
     g.appendChild(p);
   });
   g.appendChild(sg("path",{d:GEO.nat,"class":"mesh"}));
-  var drawn={};
-  if(t==="House"&&state.shapes&&GEO.cd){
-    var gd=sg("g");svg.appendChild(gd);
-    var keys=Object.keys(GEO.cd),trk={};
-    list.forEach(function(r){trk[r.state+r.id.slice(-2)]=r});
-    keys.filter(function(k){return !trk[k]}).forEach(function(k){gd.appendChild(sg("path",{d:GEO.cd[k],"class":"cdp"}))});
-    keys.filter(function(k){return trk[k]}).forEach(function(k){
-      var r=trk[k];drawn[r.id]=1;
-      var p=sg("path",{d:GEO.cd[k],"class":"cdp tr"+(state.sel===r.id?" sel":""),tabindex:"0",role:"button","aria-label":r.label+" "+fmtM(r.headline)});
-      p.style.fill=colorFor(r.headline);
-      p.addEventListener("click",function(){pick(r.id)});
-      p.addEventListener("keydown",function(e){if(e.key==="Enter"||e.key===" "){e.preventDefault();pick(r.id)}});
-      p.addEventListener("mousemove",function(e){showTip(e,tipFor(r))});
-      p.addEventListener("mouseleave",hideTip);
-      gd.appendChild(p);
-    });
-    // selected shape on top so its outline is not clipped
-    var sel=gd.querySelector(".sel");if(sel)gd.appendChild(sel);
-    svg.appendChild(sg("path",{d:GEO.nat,"class":"mesh"}));
-  }
   if(t==="House"){
-    list.filter(function(r){return !drawn[r.id]}).sort(function(a,b){return b.votes-a.votes}).forEach(function(r){
+    list.slice().sort(function(a,b){return b.votes-a.votes}).forEach(function(r){
       var c=raceCenter(r),rad=7+Math.sqrt(r.votes/1000)*0.42;
       var b=sg("circle",{cx:c[0],cy:c[1],r:Math.min(rad,15).toFixed(1),"class":"bub"+(state.sel===r.id?" sel":""),tabindex:"0",role:"button","aria-label":r.label+" "+fmtM(r.headline)});
       b.style.fill=colorFor(r.headline);b.style.setProperty("--glow",glowFor(r.headline));
@@ -329,9 +268,7 @@ function drawNational(){
     c.addEventListener("click",function(){pick(r.id)});lst.appendChild(c);
   });
   host.appendChild(lst);
-  $("#shapeSeg").hidden=(t!=="House");
-  var nb=Object.keys(drawn).length<list.length;
-  $("#typeNote").textContent=t==="House"?(state.shapes&&GEO.cd?(nb?"Districts are drawn as shapes. Bubbles mark races in states with new 2026 maps, sized by projected votes. Click a district for its race page.":"Districts are drawn as shapes. Click a district for its race page."):"Bubbles are districts, sized by projected votes. Click one for its race page."):"Click a state for its race page.";
+  $("#typeNote").textContent=t==="House"?"Bubbles are districts, sized by projected votes.":"Click a state for the county map.";
 }
 function byStateAny(ab){return RACES.some(function(r){return r.state===ab&&r.type===state.type})}
 function tipFor(r){
@@ -339,155 +276,57 @@ function tipFor(r){
   return "<b>"+r.label+"</b><br>"+fmtM(r.headline)+(r.vh_win!=null?"<br>R win "+pct(r.vh_win):"")+(p&&p.R&&p.R.mid!=null?"<br>Polymarket R "+p.R.mid.toFixed(0)+"c":"");
 }
 
-/* ---------- race pages ---------- */
-var ENGINE_URL="";   /* e.g. "https://your-service.onrender.com". Also read from ?engine= or data.json "engine". */
-var RP={id:null,timer:null,live:null,err:null,t:null,mode:null,sk:"votes",sd:-1};
-function openRace(id){location.hash="race/"+id}
-function pick(id){openRace(id)}
-function route(){
-  var h=location.hash.replace("#","").split("/");
-  if(h[0]==="race"&&BYID[h[1]]){showRace(h[1]);return}
-  if(h[1]&&BYID[h[1]]){state.sel=h[1];state.type=BYID[h[1]].type}
-  setView(h[0]==="board"?"board":"maps");
-}
-function stopRace(){clearInterval(RP.timer);RP.timer=null;RP.id=null;RP.live=null;RP.err=null;RP.t=null;RP.mode=null;RP.picked=false;document.title="Midterm Board"}
-function showRace(id){
-  var r=BYID[id];stopRace();
-  RP.id=id;state.sel=id;state.type=r.type;state.view="race";
-  $("#view-maps").hidden=true;$("#view-board").hidden=true;$("#view-race").hidden=false;
-  $("#t-maps").setAttribute("aria-selected","false");$("#t-board").setAttribute("aria-selected","false");
-  document.querySelector("main").classList.add("race");
-  document.title=r.label+" | Midterm Board";
-  $("#racepage").style.minHeight="";
-  drawRace();fetchLive();
-  RP.timer=setInterval(function(){if(!document.hidden)fetchLive()},30000);
-  window.scrollTo(0,0);
-}
-function fetchLive(){
-  var id=RP.id;if(!id||!ENGINE_URL)return;
-  fetch(ENGINE_URL+"/api/race/"+encodeURIComponent(id)).then(function(x){if(!x.ok)throw new Error("HTTP "+x.status);return x.json()}).then(function(d){
-    if(RP.id!==id)return;RP.live=d;RP.err=null;RP.t=new Date();drawRace();
-  }).catch(function(e){if(RP.id!==id)return;RP.err=String(e.message||e);drawRace()});
-}
-function nfmt(n){return n==null?"n/a":Math.round(n).toLocaleString()}
-function liveTotals(d){
-  var c=0,rem=0,cD=0,cR=0;
-  (d.counties||[]).forEach(function(x){c+=x[3]||0;rem+=x[4]||0;cD+=x[8]||0;cR+=x[9]||0});
-  return {counted:c,rem:rem,cm:c>0?100*(cR-cD)/c:null};
-}
-function fanSvg(d){
-  var W=640,H=92,pad=26,lo=Math.min(d.p05,-1),hi=Math.max(d.p95,1);
-  var span=hi-lo,x=function(v){return pad+(v-lo)/span*(W-2*pad)};
-  var g='<svg class="fan" viewBox="0 0 '+W+' '+H+'" role="img" aria-label="Final margin range, 5th to 95th percentile '+fmtM(d.p05)+' to '+fmtM(d.p95)+'">';
-  function bar(a,b,y,hh,op){
-    var mid=(a+b)/2,col=mid>=0?"var(--rep)":"var(--dem)";
-    if(a<0&&b>0){
-      return '<rect x="'+x(a)+'" y="'+y+'" width="'+(x(0)-x(a))+'" height="'+hh+'" rx="3" fill="var(--dem)" opacity="'+op+'"/><rect x="'+x(0)+'" y="'+y+'" width="'+(x(b)-x(0))+'" height="'+hh+'" rx="3" fill="var(--rep)" opacity="'+op+'"/>';
-    }
-    return '<rect x="'+x(a)+'" y="'+y+'" width="'+Math.max(x(b)-x(a),2)+'" height="'+hh+'" rx="3" fill="'+col+'" opacity="'+op+'"/>';
-  }
-  g+=bar(d.p05,d.p95,26,14,.3);
-  if(d.p25!=null&&d.p75!=null)g+=bar(d.p25,d.p75,22,22,.75);
-  g+='<line x1="'+x(d.margin)+'" x2="'+x(d.margin)+'" y1="14" y2="52" stroke="var(--text)" stroke-width="2.5"/>';
-  g+='<line class="zero" x1="'+x(0)+'" x2="'+x(0)+'" y1="10" y2="58"/>';
-  g+='<text x="'+x(0)+'" y="72" text-anchor="middle">tied</text>';
-  g+='<text x="'+x(d.p05)+'" y="84" text-anchor="middle">'+fmtM(d.p05)+'</text>';
-  g+='<text x="'+x(d.p95)+'" y="84" text-anchor="middle">'+fmtM(d.p95)+'</text>';
-  g+='<text x="'+x(d.margin)+'" y="9" text-anchor="middle" style="fill:var(--text);font-weight:600">'+fmtM(d.margin)+'</text>';
-  return g+'</svg>';
-}
-function raceRows(r,d,started){
-  if(started&&d.counties){
-    return d.counties.map(function(x){return {fips:x[0],name:x[1],pct:x[2],counted:x[3],rem:x[4],fin:(x[3]||0)+(x[4]||0),pm:x[5],rm:x[10],cm:x[11]}});
-  }
-  return r.counties.map(function(c){return {fips:c[0],name:c[1],votes:c[2]+c[3],bm:blendOf(r,c),c:c}});
-}
-function drawRace(){
-  var r=BYID[RP.id],host=$("#racepage");if(!r)return;
-  host.style.minHeight=host.offsetHeight+"px";
-  var d=RP.live,started=!!(d&&d.state&&d.state!=="pre"&&d.counties);
-  var lv=started?liveTotals(d):null;
+/* ---------- detail ---------- */
+function pick(id){state.sel=id;state.bucket="blend";drawNational();drawDetail();
+  if(innerWidth<=900)$("#detail").scrollIntoView({behavior:"smooth",block:"start"})}
+function drawDetail(){
+  var box=$("#detail");
+  var r=BYID[state.sel];
+  if(!r){box.innerHTML='<div class="empty">Pick a race on the map or from the list.</div>';return}
   var p=PM[r.id],ed=edge(r);
-  var margin=started?d.margin:r.headline;
-  var st=started?(d.state==="complete"?'<span class="status done">All counties reporting</span>':'<span class="status live">Counting</span>'):'<span class="status">Before results</span>';
-  if(started&&d.call_ready)st+=' <span class="pill '+cls(margin)+'">Call ready, '+(margin>=0?"R":"D")+'</span>';
-  var h='<div class="rhead"><div><h1>'+r.label+'</h1><div class="sub">'+r.rep+' (R) vs '+r.other+'</div></div><div>'+st+'</div></div>';
-  var feed,fc="feed";
-  if(!ENGINE_URL)feed="Live results are not connected yet, so this page shows the baseline forecast.";
-  else if(RP.err){feed="Could not reach the results feed ("+RP.err+"). Showing the last numbers it had.";fc="feed bad"}
-  else if(!d)feed="Loading results.";
-  else if(!started)feed="Waiting for results. Counted, remaining and final votes appear here once counting starts.";
-  else feed="Live feed, updated "+(RP.t?RP.t.toLocaleTimeString([], {hour:"numeric",minute:"2-digit",second:"2-digit"}):"")+". Refreshes every 30 seconds.";
-  h+='<div class="'+fc+'">'+feed+'</div>';
-  h+='<div class="bigrow"><div class="big '+cls(margin)+'">'+fmtM(margin)+'</div><div class="sub">'+(started?"Projected final margin, live model":"Baseline margin before results")+'</div></div>';
-  var tv=started?lv.counted:0, tr=started?lv.rem:r.votes, tf=started?lv.counted+lv.rem:r.votes;
-  h+='<div class="tiles">'
-    +'<div class="tile"><div class="k">Counted votes</div><div class="v">'+nfmt(tv)+'</div><div class="n">'+(started?(d.reporting*100).toFixed(1)+'% of projected votes':'No results yet')+'</div></div>'
-    +'<div class="tile"><div class="k">Projected remaining</div><div class="v">'+nfmt(tr)+'</div><div class="n">'+(started?'Still to count':'All of the projected vote')+'</div></div>'
-    +'<div class="tile"><div class="k">Projected final votes</div><div class="v">'+nfmt(tf)+'</div><div class="n">'+(started?'Counted plus remaining':'Baseline turnout estimate')+'</div></div>'
-    +'<div class="tile"><div class="k">Margin of votes counted</div><div class="v">'+(started&&lv.cm!=null?fmtM(lv.cm):'n/a')+'</div><div class="n">'+(started?'Where the count stands now':'Appears once votes come in')+'</div></div>'
-    +'</div>';
-  h+='<div class="grid"><div class="card"><h3 style="margin-top:0">Where the race stands</h3><dl class="kv">';
-  if(started&&d.win_prob_R!=null)h+='<dt>R win, live model</dt><dd>'+pct(100*d.win_prob_R)+'</dd>';
+  var h='<h2>'+r.label+'</h2><div class="sub">'+r.rep+' (R) vs '+r.other+'</div>';
+  h+='<div class="big '+cls(r.headline)+'">'+fmtM(r.headline)+'</div>';
+  h+='<dl class="kv">';
   if(r.vh_win!=null)h+='<dt>R win, VoteHub</dt><dd>'+pct(r.vh_win)+'</dd>';
-  else if(!(started&&d.win_prob_R!=null))h+='<dt>Win probability</dt><dd>Not shown for this race</dd>';
-  h+='<dt>Baseline margin</dt><dd>'+fmtM(r.headline)+'</dd>';
-  if(started)h+='<dt>Likely range (5 to 95)</dt><dd>'+fmtM(d.p05)+' to '+fmtM(d.p95)+'</dd>';
+  else h+='<dt>Win probability</dt><dd>Not shown for this race</dd>';
   if(p&&p.R){
     h+='<dt>Polymarket R</dt><dd>'+(p.R.mid!=null?p.R.mid.toFixed(1)+'c':'n/a')+(p.R.bid!=null&&p.R.ask!=null?' ('+p.R.bid.toFixed(0)+' / '+p.R.ask.toFixed(0)+')':'')+(p.thin?' thin':'')+'</dd>';
     if(ed&&ed.e!=null)h+='<dt>Best side</dt><dd>'+(ed.side==="R"?"Buy R":"Buy D")+' at '+ed.price.toFixed(0)+'c, edge '+(ed.e>=0?"+":"")+ed.e.toFixed(1)+'c</dd>';
   } else h+='<dt>Polymarket</dt><dd>'+(PM_STATE.when?'no market found':'loading')+'</dd>';
-  h+='<dt>Projected votes, baseline</dt><dd>'+nfmt(r.votes)+'</dd>';
-  if(r.buckets&&r.buckets.length)r.buckets.forEach(function(b){h+='<dt>'+b.label+'</dt><dd>'+fmtM(r.bucket_margins[b.key])+', '+(r.shares[b.key]*100).toFixed(0)+'% of vote</dd>'});
+  h+='<dt>Projected votes</dt><dd>'+Math.round(r.votes).toLocaleString()+'</dd>';
+  if(r.buckets&&r.buckets.length){
+    r.buckets.forEach(function(b){h+='<dt>'+b.label+'</dt><dd>'+fmtM(r.bucket_margins[b.key])+', '+(r.shares[b.key]*100).toFixed(0)+'% of vote</dd>'});
+  }
   h+='</dl>';
-  if(started){h+='<h3>Final margin range</h3>'+fanSvg(d)+'<div class="sub">Dark bar is the middle half of outcomes, light bar is the 5th to 95th percentile, line is the median.</div>'}
-  h+='</div><div class="card"><h3 style="margin-top:0">County map</h3><div class="rowlist" id="bk"></div><div id="cmap"></div></div></div>';
-  h+='<div class="sect">Counties</div><div class="tw rtable"><table><thead><tr id="rthead"></tr></thead><tbody id="rtbody"></tbody></table></div><div class="sub rhint">Scroll the table sideways for more columns.</div>';
-  if(r.method||r.notes){h+='<div class="sect">How the baseline was set</div>';if(r.method)h+='<div class="sub">'+r.method+'</div>';if(r.notes)h+='<div class="sub" style="margin-top:6px">'+r.notes+'</div>'}
-  host.innerHTML=h;host.style.minHeight="";
-  var rows=raceRows(r,d,started);
-  drawRaceChips(r,started);
-  drawRaceMap(r,rows,started);
-  drawRaceTable(r,rows,started);
+  if(r.buckets&&r.buckets.length){
+    h+='<h3>County map</h3><div class="rowlist" id="bk"></div>';
+  } else h+='<h3>County map</h3>';
+  h+='<div id="cmap"></div>';
+  if(r.method)h+='<h3>How the baseline was set</h3><div class="sub">'+r.method+'</div>';
+  if(r.notes)h+='<div class="sub" style="margin-top:6px">'+r.notes+'</div>';
+  box.innerHTML=h;
+  if(r.buckets&&r.buckets.length){
+    var bk=$("#bk");
+    [{key:"blend",label:"Blended"}].concat(r.buckets).forEach(function(b){
+      var c=el("button",{"class":"chip","aria-pressed":state.bucket===b.key?"true":"false"},b.label);
+      c.addEventListener("click",function(){state.bucket=b.key;drawDetail()});bk.appendChild(c);
+    });
+  }
+  drawCounty(r);
 }
-function modeList(r,started){
-  var m=started?[{key:"final",label:"Projected final"},{key:"counted",label:"Counted so far"},{key:"pct",label:"Percent counted"},{key:"blend",label:"Baseline"}]:[{key:"blend",label:"Blended"}];
-  return m.concat(r.buckets||[]);
-}
-function drawRaceChips(r,started){
-  var ml=modeList(r,started);
-  if(!RP.picked||!ml.some(function(x){return x.key===RP.mode}))RP.mode=ml[0].key;
-  var bk=$("#bk");
-  if(ml.length<2){bk.hidden=true;return}
-  ml.forEach(function(b){
-    var c=el("button",{"class":"chip","aria-pressed":RP.mode===b.key?"true":"false"},b.label);
-    c.addEventListener("click",function(){RP.mode=b.key;RP.picked=true;drawRace()});bk.appendChild(c);
-  });
-}
-function pctColor(f){var t=Math.min(Math.max(f||0,0),1);return mix(hex(css("--mid")),hex(css("--hi")),0.1+0.9*t)}
-function drawRaceMap(r,rows,started){
+function drawCounty(r){
   var host=$("#cmap"),G=GEO.counties[r.state];
-  if(!G){host.innerHTML='<div class="sub">No county map for this race.</div>';return}
-  var by={};rows.forEach(function(x){by[x.fips]=x});
-  var mode=RP.mode,live=started&&(mode==="final"||mode==="counted"||mode==="pct");
-  var svg=sg("svg",{viewBox:"0 0 "+G.w+" "+G.h,role:"img","aria-label":r.label+" county map"}),hit=0;
+  var svg=sg("svg",{viewBox:"0 0 "+G.w+" "+G.h,role:"img","aria-label":r.label+" county map"});
+  var data={};r.counties.forEach(function(c){data[c[0]]=c});
+  var statewide=(r.type!=="House");
+  var hit=0;
   Object.keys(G.items).forEach(function(f){
-    var it=G.items[f],x=by[f],p=sg("path",{d:it.d});
-    if(x){
-      hit++;var v,tt;
-      if(started&&live){
-        if(mode==="pct"){v=x.pct;p.style.fill=pctColor(v);tt=(v==null?"n/a":(v*100).toFixed(0)+"% counted")}
-        else{v=mode==="final"?x.pm:x.cm;p.style.fill=colorFor(v);tt=(mode==="final"?"Projected final ":"Counted ")+(v==null?"n/a":fmtM(v))}
-        tt+="<br>"+nfmt(x.counted)+" counted, "+nfmt(x.rem)+" to come";
-      } else {
-        var c=x.c;
-        if(!c){c=(r.counties.filter(function(q){return q[0]===f})[0])}
-        v=c?cMargin(r,c,started?"blend":mode):null;
-        if(started&&mode!=="blend"&&mode!=="final"&&mode!=="counted"&&mode!=="pct")v=c?cMargin(r,c,mode):null;
-        p.style.fill=colorFor(v);tt=(v==null?"n/a":fmtM(v))+"<br>"+nfmt(c?c[2]+c[3]:null)+" baseline votes";
-      }
-      p.setAttribute("class","ct in");
-      p.addEventListener("mousemove",function(e){showTip(e,"<b>"+it.n+"</b><br>"+tt)});
+    var it=G.items[f],c=data[f];
+    var p=sg("path",{d:it.d});
+    if(c){
+      hit++;var m=cMargin(r,c,state.bucket);
+      p.setAttribute("class","ct in");p.style.fill=colorFor(m);
+      p.addEventListener("mousemove",function(e){showTip(e,"<b>"+it.n+"</b><br>"+(m==null?"n/a":fmtM(m))+"<br>"+Math.round(c[2]+c[3]).toLocaleString()+" baseline votes")});
       p.addEventListener("mouseleave",hideTip);
     } else p.setAttribute("class","ct out");
     svg.appendChild(p);
@@ -496,60 +335,7 @@ function drawRaceMap(r,rows,started){
   host.innerHTML="";
   if(!hit){host.innerHTML='<div class="sub">This race is modeled as one unit, so there is no county breakdown to draw.</div>';return}
   host.appendChild(svg);
-  if(r.type==="House")host.appendChild(el("div",{"class":"sub"},"Counties shaded are the ones the district touches. Split counties show the district portion."));
-}
-function drawRaceTable(r,rows,started){
-  var pc=function(v){return v==null?"n/a":(v*100).toFixed(0)+"%"};
-  var mm=function(v){return v==null?'<span class="sub">n/a</span>':'<span class="pill '+cls(v)+'">'+fmtM(v)+'</span>'};
-  var cols=started?[
-    {k:"name",t:"County",v:function(x){return x.name},f:function(x){return "<b>"+x.name+"</b>"}},
-    {k:"pct",t:"Percent counted",v:function(x){return x.pct},f:function(x){return pc(x.pct)}},
-    {k:"counted",t:"Votes counted",v:function(x){return x.counted},f:function(x){return nfmt(x.counted)}},
-    {k:"rem",t:"Projected remaining",v:function(x){return x.rem},f:function(x){return nfmt(x.rem)}},
-    {k:"fin",t:"Projected final votes",v:function(x){return x.fin},f:function(x){return nfmt(x.fin)}},
-    {k:"cm",t:"Margin counted",v:function(x){return x.cm},f:function(x){return mm(x.cm)}},
-    {k:"rm",t:"Margin of remaining",v:function(x){return x.rm},f:function(x){return mm(x.rm)}},
-    {k:"pm",t:"Projected final margin",v:function(x){return x.pm},f:function(x){return mm(x.pm)}}
-  ]:[
-    {k:"name",t:"County",v:function(x){return x.name},f:function(x){return "<b>"+x.name+"</b>"}},
-    {k:"votes",t:"Baseline votes",v:function(x){return x.votes},f:function(x){return nfmt(x.votes)}},
-    {k:"bm",t:"Baseline margin",v:function(x){return x.bm},f:function(x){return mm(x.bm)}}
-  ];
-  var dk=started?"fin":"votes";
-  if(!cols.some(function(c){return c.k===RP.sk}))RP.sk=dk;
-  var tr=$("#rthead");tr.innerHTML="";
-  cols.forEach(function(c){
-    var th=el("th",{scope:"col","aria-sort":RP.sk===c.k?(RP.sd>0?"ascending":"descending"):"none"});
-    var b=el("button",{type:"button"},c.t);
-    b.addEventListener("click",function(){if(RP.sk===c.k)RP.sd*=-1;else{RP.sk=c.k;RP.sd=c.k==="name"?1:-1}drawRaceTable(r,rows,started)});
-    th.appendChild(b);tr.appendChild(th);
-  });
-  var col=cols.filter(function(c){return c.k===RP.sk})[0];
-  var sorted=rows.slice().sort(function(a,b){
-    var x=col.v(a),y=col.v(b);
-    if(x==null&&y==null)return 0;if(x==null)return 1;if(y==null)return -1;
-    if(typeof x==="string")return x.localeCompare(y)*RP.sd;
-    return (x-y)*RP.sd;
-  });
-  var tb=$("#rtbody");tb.innerHTML="";
-  sorted.forEach(function(x){
-    var row=el("tr");
-    cols.forEach(function(c){row.appendChild(el("td",c.k==="name"?null:{"class":"n"},c.f(x)))});
-    tb.appendChild(row);
-  });
-}
-
-/* ---------- side list on the map page ---------- */
-function drawDetail(){
-  var box=$("#detail"),t=state.type;
-  var list=racesOfType(t).slice().sort(function(a,b){return Math.abs(a.headline)-Math.abs(b.headline)});
-  var h='<h3 style="margin-top:0">'+t+' races, closest first</h3><div class="sideTbl">';
-  list.forEach(function(r){
-    h+='<button type="button" class="srow" data-id="'+r.id+'"><span><b>'+r.label+'</b></span><span class="pill '+cls(r.headline)+'">'+fmtM(r.headline)+'</span><span class="sub">'+(r.vh_win!=null?pct(r.vh_win)+' R':'')+'</span></button>';
-  });
-  h+='</div>';
-  box.innerHTML=h;
-  box.querySelectorAll(".srow").forEach(function(b){b.addEventListener("click",function(){openRace(b.dataset.id)})});
+  if(!statewide)host.appendChild(el("div",{"class":"sub"},"Counties shaded are the ones the district touches. Split counties show the district portion."));
 }
 
 /* ---------- board ---------- */
@@ -604,11 +390,11 @@ function drawBoard(){
     td(e&&e.e!=null?'<span class="pill '+(e.side==="R"?"r":"d")+'">Buy '+e.side+'</span>':'<span class="pill x">none</span>');
     td(e&&e.e!=null?'<span class="edgebar" style="width:'+Math.round(Math.max(e.e,0)/maxE*70)+'px;background:'+(e.side==="R"?"var(--rep)":"var(--dem)")+'"></span>'+(e.e>=0?"+":"")+e.e.toFixed(1):wait,"n");
     td(p?money(p.vol):wait,"n");
-    function go(){openRace(r.id)}
+    function go(){state.type=r.type;state.sel=r.id;setView("maps")}
     tr.addEventListener("click",go);tr.addEventListener("keydown",function(ev){if(ev.key==="Enter")go()});
     tb.appendChild(tr);
   });
-  $("#boardNote").textContent=rows.length+" races. * marks a thin market. Click a row to open the race page.";
+  $("#boardNote").textContent=rows.length+" races. * marks a thin market. Click a row to open its map.";
   drawPmStatus();
 }
 
@@ -710,7 +496,7 @@ function pmRestore(){
 /* ---------- shell ---------- */
 function setView(v){
   state.view=v;
-  $("#view-maps").hidden=v!=="maps";$("#view-board").hidden=v!=="board";$("#view-race").hidden=true;stopRace();document.querySelector("main").classList.remove("race");
+  $("#view-maps").hidden=v!=="maps";$("#view-board").hidden=v!=="board";
   $("#t-maps").setAttribute("aria-selected",v==="maps");$("#t-board").setAttribute("aria-selected",v==="board");
   if(v==="maps"){setSeg("#typeSeg",state.type);drawNational();drawDetail()}else drawBoard();
   try{history.replaceState(null,"","#"+v+(v==="maps"&&state.sel?"/"+state.sel:""))}catch(e){}
@@ -748,15 +534,14 @@ function init(){
   $("#t-maps").addEventListener("click",function(){setView("maps")});
   $("#t-board").addEventListener("click",function(){setView("board")});
   document.querySelectorAll("#typeSeg button").forEach(function(b){b.addEventListener("click",function(){state.type=b.dataset.t;if(state.sel&&BYID[state.sel].type!==state.type)state.sel=null;setSeg("#typeSeg",state.type);drawNational();drawDetail()})});
-  document.querySelectorAll("#shapeSeg button").forEach(function(b){b.addEventListener("click",function(){state.shapes=b.dataset.s==="1";document.querySelectorAll("#shapeSeg button").forEach(function(x){x.setAttribute("aria-pressed",x===b)});drawNational()})});
   document.querySelectorAll("#bTypeSeg button").forEach(function(b){b.addEventListener("click",function(){state.bType=b.dataset.t;setSeg("#bTypeSeg",state.bType);drawBoard()})});
   $("#hideWide").addEventListener("change",function(e){state.hideWide=e.target.checked;drawBoard()});
-  ENGINE_URL=(new URLSearchParams(location.search).get("engine")||ENGINE_URL||DATA.engine||"").replace(/\/$/,"");
-  addEventListener("hashchange",route);
-  route();
+  var m=location.hash.replace("#","").split("/");
+  if(m[1]&&BYID[m[1]]){state.sel=m[1];state.type=BYID[m[1]].type}
+  setView(m[0]==="board"?"board":"maps");
   pmLoad();
   setInterval(function(){if(!document.hidden)pmLoad()},60000);
-  matchMedia("(prefers-color-scheme: dark)").addEventListener("change",function(){drawRamp();if(state.view==="race")drawRace();else setView(state.view)});
+  matchMedia("(prefers-color-scheme: dark)").addEventListener("change",function(){drawRamp();setView(state.view)});
 }
 Promise.all([fetch("data.json").then(function(r){return r.json()}),fetch("geo.json").then(function(r){return r.json()})]).then(function(a){
   DATA=a[0];GEO=a[1];
