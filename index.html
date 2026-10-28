@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Midterm Board</title>
-<meta name="description" content="2026 midterm county models: House, Senate and governor maps, with Kalshi prices set against the VoteHub forecast.">
+<meta name="description" content="2026 midterm county models: House, Senate and governor maps, with Polymarket prices set against our live model.">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Anton&family=IBM+Plex+Mono:wght@400;600&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
@@ -223,7 +223,7 @@ table.res tr.tot td{border-top:2px solid var(--text);font-weight:600}
       <button data-t="Governor" aria-pressed="false">Governor</button>
     </div>
     <label class="chk"><input type="checkbox" id="hideWide"> Hide thin markets</label>
-    <span class="sub" id="boardNote"></span><span class="pmstat" id="pmStatus"></span>
+    <span class="sub" id="boardNote"></span><span class="pmstat" id="pmStatus"></span><span class="pmstat" id="mdlStatus"></span>
   </div>
   <div class="tw"><table id="tbl">
     <thead><tr id="thead"></tr></thead><tbody id="tbody"></tbody>
@@ -236,10 +236,10 @@ table.res tr.tot td{border-top:2px solid var(--text);font-weight:600}
 </section>
 
 <div class="foot">
-  <p>Race margins are two-party, Republican minus Democratic. VoteHub win probability is the chance the Republican wins. Polymarket prices are in cents for a Yes share on each party, read live from Polymarket in your browser.</p>
+  <p>Race margins are two-party, Republican minus Democratic. Model win probability is the chance the Republican wins, from our live county model on the engine. Polymarket prices are in cents for a Yes share on each party, read live from Polymarket in your browser.</p>
   <p>The chamber bars count every seat. Races we model use our baseline margin, and every other seat goes to whichever party VoteHub gives the better chance. Senate seats and governorships not on the ballot this year count for the party that holds them. The paler part of each bar is those safe or off-year seats.</p>
   <p id="stamp"></p>
-  <p>Edge is the gap between the VoteHub probability and what you would pay on Polymarket, using the ask on whichever side is cheaper against VoteHub. A big edge can mean the market knows something VoteHub does not, and thin markets can show gaps that nobody can actually trade, so treat it as a place to look.</p>
+  <p>Edge is the gap between the model probability and what you would pay on Polymarket, using the ask on whichever side is cheaper against the model. A big edge can mean the market knows something the model does not, and thin markets can show gaps that nobody can actually trade, so treat it as a place to look.</p>
 </div>
 </main>
 <div class="tip" id="tip"></div>
@@ -280,10 +280,23 @@ function cMargin(r,c,key){
   if(key==="blend"||!r.buckets||!r.buckets.length)return blendOf(r,c);
   var i=bucketKeys(r).indexOf(key);return i<0?null:c[4+i];
 }
+/* model win probability (percent chance the Republican wins), from the engine's /api/projection */
+var MODEL={},MODEL_STATE={when:null,err:null};
+function mw(r){var m=MODEL[r.id];return m&&m.win_prob!=null?100*m.win_prob:null}
+function loadModel(){
+  var base=engineBase();if(!base)return;
+  fetch(base+"/api/projection?t="+Date.now()).then(function(x){if(!x.ok)throw new Error("HTTP "+x.status);return x.json()}).then(function(j){
+    MODEL=j.races||{};MODEL_STATE={when:Date.now(),err:null,upd:j.updated,mode:j.mode};modelRefresh();
+  }).catch(function(e){MODEL_STATE.err=(e instanceof TypeError?"could not connect to the model":String(e.message||e));modelRefresh()});
+}
+function modelRefresh(){
+  var ms=$("#mdlStatus");if(ms){ms.textContent=MODEL_STATE.err?"Model odds unavailable: "+MODEL_STATE.err:(MODEL_STATE.when?"Model odds updated "+new Date(MODEL_STATE.when).toLocaleTimeString():"");ms.className="pmstat"+(MODEL_STATE.err?" bad":"")}
+  if(state.view==="board")drawBoard();else if(state.view==="race")drawRace();
+}
 function edge(r){
-  var p=PM[r.id];if(!p||!p.R||r.vh_win==null)return null;
+  var p=PM[r.id],w=mw(r);if(!p||!p.R||w==null)return null;
   var aR=p.R.ask, aD=(p.D&&p.D.ask!=null)?p.D.ask:(p.R.bid!=null?100-p.R.bid:null);
-  var yes=aR!=null?r.vh_win-aR:null, no=aD!=null?(100-r.vh_win)-aD:null;
+  var yes=aR!=null?w-aR:null, no=aD!=null?(100-w)-aD:null;
   if(yes==null&&no==null)return null;
   if(no==null||(yes!=null&&yes>=no))return {side:"R",e:yes,price:aR,thin:p.thin};
   return {side:"D",e:no,price:aD,thin:p.thin};
@@ -371,7 +384,7 @@ function drawNational(){
 function byStateAny(ab){return RACES.some(function(r){return r.state===ab&&r.type===state.type})}
 function tipFor(r){
   var p=PM[r.id];
-  return "<b>"+r.label+"</b><br>"+fmtM(r.headline)+(r.vh_win!=null?"<br>R win "+pct(r.vh_win):"")+(p&&p.R&&p.R.mid!=null?"<br>Polymarket R "+p.R.mid.toFixed(0)+"c":"");
+  return "<b>"+r.label+"</b><br>"+fmtM(r.headline)+(mw(r)!=null?"<br>Model R win "+pct(mw(r)):"")+(p&&p.R&&p.R.mid!=null?"<br>Polymarket R "+p.R.mid.toFixed(0)+"c":"");
 }
 
 /* ---------- detail ---------- */
@@ -501,7 +514,7 @@ function drawRace(){
     if(res.regimes)h+='<dt>Counting order</dt><dd>early first '+(res.regimes[0]*100).toFixed(0)+'%, even '+(res.regimes[1]*100).toFixed(0)+'%, late first '+(res.regimes[2]*100).toFixed(0)+'%</dd>';
     h+='<dt>Counties with method data</dt><dd>'+res.counties_with_method_data+' of '+res.counties.length+'</dd>';
     if(p&&p.R)h+='<dt>Polymarket '+rn+'</dt><dd>'+(p.R.mid!=null?p.R.mid.toFixed(0)+'c':'n/a')+(ed&&ed.e!=null?' - '+(ed.side==="R"?'buy R':'buy D')+' edge '+(ed.e>=0?'+':'')+ed.e.toFixed(1)+'c':'')+'</dd>';
-    if(r.vh_win!=null)h+='<dt>VoteHub '+rn+' wins</dt><dd>'+pct(r.vh_win)+'</dd>';
+    if(r.vh_win!=null)h+='<dt>VoteHub, for reference</dt><dd>'+pct(r.vh_win)+' '+rn+'</dd>';
     h+='</dl></div></div>';
     h+='<div class="tw"><table><thead><tr><th>County</th><th>% in</th><th>Votes left</th><th>'+dn+' left</th><th>'+rn+' left</th><th>Margin of the rest</th><th>Projected final</th><th>Swing vs model</th><th>Method data</th></tr></thead><tbody>';
     list.forEach(function(c){
@@ -572,7 +585,7 @@ function drawDetail(){
   var h='<h2>'+r.label+'</h2><div class="sub">'+r.rep+' (R) vs '+r.other+'</div>';
   h+='<div class="big '+cls(r.headline)+'">'+fmtM(r.headline)+'</div>';
   h+='<dl class="kv">';
-  if(r.vh_win!=null)h+='<dt>R win, VoteHub</dt><dd>'+pct(r.vh_win)+'</dd>';
+  if(mw(r)!=null)h+='<dt>R win, model</dt><dd>'+pct(mw(r))+'</dd>';
   else h+='<dt>Win probability</dt><dd>Not shown for this race</dd>';
   if(p&&p.R){
     h+='<dt>Polymarket R</dt><dd>'+(p.R.mid!=null?p.R.mid.toFixed(1)+'c':'n/a')+(p.R.bid!=null&&p.R.ask!=null?' ('+p.R.bid.toFixed(0)+' / '+p.R.ask.toFixed(0)+')':'')+(p.thin?' thin':'')+'</dd>';
@@ -627,11 +640,11 @@ function drawCounty(r){
 var COLS=[
   {k:"label",t:"Race",s:function(r){return r.label}},
   {k:"margin",t:"Margin",s:function(r){return r.headline}},
-  {k:"vh",t:"VoteHub R win",s:function(r){return r.vh_win}},
+  {k:"vh",t:"Model R win",s:function(r){return mw(r)}},
   {k:"mid",t:"Polymarket R",s:function(r){var p=PM[r.id];return p&&p.R&&p.R.mid}},
   {k:"bid",t:"Bid",s:function(r){var p=PM[r.id];return p&&p.R&&p.R.bid}},
   {k:"ask",t:"Ask",s:function(r){var p=PM[r.id];return p&&p.R&&p.R.ask}},
-  {k:"gap",t:"Mid minus VoteHub",s:function(r){var p=PM[r.id];return p&&p.R&&p.R.mid!=null&&r.vh_win!=null?p.R.mid-r.vh_win:null}},
+  {k:"gap",t:"Mid minus model",s:function(r){var p=PM[r.id],w=mw(r);return p&&p.R&&p.R.mid!=null&&w!=null?p.R.mid-w:null}},
   {k:"side",t:"Best side",s:function(r){var e=edge(r);return e&&e.side}},
   {k:"edge",t:"Edge, cents",s:function(r){var e=edge(r);return e&&e.e}},
   {k:"vol",t:"Volume",s:function(r){var p=PM[r.id];return p&&p.vol}}
@@ -667,11 +680,11 @@ function drawBoard(){
     function td(h,c){var d=el("td",c?{"class":c}:null,h);tr.appendChild(d)}
     td("<b>"+r.label+"</b>");
     td('<span class="pill '+cls(r.headline)+'">'+fmtM(r.headline)+'</span>');
-    td(r.vh_win!=null?pct(r.vh_win):"n/a","n");
+    td(mw(r)!=null?pct(mw(r)):(MODEL_STATE.when||MODEL_STATE.err?"n/a":"..."),"n");
     td(R&&R.mid!=null?R.mid.toFixed(1):wait,"n");
     td(R&&R.bid!=null?R.bid.toFixed(0):wait,"n");
     td(R&&R.ask!=null?R.ask.toFixed(0)+(p.thin?" *":""):wait,"n");
-    td(R&&R.mid!=null&&r.vh_win!=null?((R.mid-r.vh_win)>0?"+":"")+(R.mid-r.vh_win).toFixed(1):wait,"n");
+    td(R&&R.mid!=null&&mw(r)!=null?((R.mid-mw(r))>0?"+":"")+(R.mid-mw(r)).toFixed(1):wait,"n");
     td(e&&e.e!=null?'<span class="pill '+(e.side==="R"?"r":"d")+'">Buy '+e.side+'</span>':'<span class="pill x">none</span>');
     td(e&&e.e!=null?'<span class="edgebar" style="width:'+Math.round(Math.max(e.e,0)/maxE*70)+'px;background:'+(e.side==="R"?"var(--rep)":"var(--dem)")+'"></span>'+(e.e>=0?"+":"")+e.e.toFixed(1):wait,"n");
     td(p?money(p.vol):wait,"n");
@@ -829,6 +842,7 @@ function init(){
   window.addEventListener("popstate",function(){var q=location.hash.replace("#","").split("/");if(q[1]&&BYID[q[1]]){state.sel=q[1];state.type=BYID[q[1]].type}setView(q[0]==="board"?"board":q[0]==="race"&&state.sel?"race":"maps")});
   setView(m[0]==="board"?"board":m[0]==="race"&&state.sel?"race":"maps");
   setInterval(function(){if(state.view==="race"&&!document.hidden)loadLive(state.sel)},30000);
+  loadModel();setInterval(function(){if(!document.hidden)loadModel()},60000);
   pmLoad();
   setInterval(function(){if(!document.hidden)pmLoad()},60000);
   matchMedia("(prefers-color-scheme: dark)").addEventListener("change",function(){drawRamp();setView(state.view)});
