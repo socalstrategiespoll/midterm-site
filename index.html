@@ -551,6 +551,22 @@ function leftBar(r,res){
   });
   return bar+'</div>'+lg+'</div><div class="sub" style="margin-top:6px">'+(have?'Based on the '+res.counties_with_method_data+' counties that report by method: expected votes minus votes counted, by method.':'No method data yet, so this is the pre-election split.')+'</div>';
 }
+function top4Card(r,res){
+  var cfg=r.top4;if(!cfg)return "";
+  var t=(res&&res.top4)||(cfg.pre&&{shares:cfg.pre.shares,p05:cfg.pre.p05,p95:cfg.pre.p95,p_over_50:cfg.pre.p_over_50,p_neither:cfg.pre.p_neither});
+  if(!t)return "";
+  var live=res&&res.state!=="pre";
+  var cs=cfg.cands.slice().sort(function(a,b){return (t.shares[b.name]||0)-(t.shares[a.name]||0)});
+  var h='<h2 class="rp-h">All four candidates, first round</h2><div class="tw" style="margin:0"><table class="res"><thead><tr><th>Candidate</th>'+(live&&t.counted?'<th>Counted so far</th>':'')+'<th>Projected share</th><th>90% range</th><th>Chance of 50%+</th></tr></thead><tbody>';
+  cs.forEach(function(c){
+    var po=t.p_over_50&&t.p_over_50[c.name];
+    h+='<tr><td><b>'+c.name+'</b>'+(c.side?' <span class="sub">'+c.side+'</span>':'')+'</td>'+(live&&t.counted?'<td>'+pc1(t.counted[c.name])+'</td>':'')
+      +'<td>'+pc1(t.shares[c.name])+'</td><td>'+pc1(t.p05[c.name])+' to '+pc1(t.p95[c.name])+'</td><td>'+(po==null?'n/a':(po<0.005?(po>0?'under 1%':'0%'):pc1(100*po)))+'</td></tr>';
+  });
+  h+='<tr class="tot"><td>Nobody reaches 50%</td>'+(live&&t.counted?'<td></td>':'')+'<td></td><td></td><td>'+(t.p_neither==null?'n/a':pc1(100*t.p_neither))+'</td></tr></tbody></table></div>'
+    +'<div class="sub" style="margin-top:6px">Shares are of all first-choice votes, minor candidates included. If nobody clears 50%, the race goes to ranked-choice counting, which this model does not project.</div>';
+  return h;
+}
 function drawRace(){
   var r=BYID[state.sel],box=$("#racepage");
   if(!r){setView("maps");return}
@@ -583,6 +599,7 @@ function drawRace(){
     +'<div class="sub" style="margin-top:8px">'+(res?nIn+' of '+res.counties.length+' counties have votes in. About '+nf(rem)+' votes left of '+nf(tot+rem)+' expected.':'No votes reported yet.')+'</div>'
     +(res?'<div class="sub">Projected final: '+fmtM(res.margin)+' (90% range '+fmtM(res.p05)+' to '+fmtM(res.p95)+')'+(res.win_prob_R!=null?'. Chance '+rn+' wins: '+pc1(100*res.win_prob_R):'')+'</div>':'')
     +'</div></div>';
+  h+=top4Card(r,res);
   /* ---- 2. county results ---- */
   h+='<h2 class="rp-h">County results</h2>';
   h+='<div class="rp-grid"><div class="card mapc"><h3 style="margin-top:0;border:0;padding:0">'+(live?'Margin of the votes counted so far':'Baseline margin (no votes in yet)')+'</h3><div id="cmapA"></div>'
