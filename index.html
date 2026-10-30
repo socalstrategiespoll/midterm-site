@@ -260,7 +260,7 @@ table.res tr.tot td{border-top:2px solid var(--text);font-weight:600}
 <script>
 "use strict";
 var DATA, GEO, RACES = [], BYID = {};
-var state = {open:{},cty:null,shapes:true, view:"maps", type:"House", sel:null, bucket:"blend", sortKey:"edge", sortDir:-1, bType:"All", hideWide:false};
+var state = {open:{},cty:null,twn:null,shapes:true, view:"maps", type:"House", sel:null, bucket:"blend", sortKey:"edge", sortDir:-1, bType:"All", hideWide:false};
 
 function $(s){return document.querySelector(s)}
 function el(n,a,h){var e=document.createElement(n);if(a)for(var k in a)e.setAttribute(k,a[k]);if(h!=null)e.innerHTML=h;return e}
@@ -405,7 +405,7 @@ function tipFor(r){
 function pick(id){openRace(id)}
 function openRace(id){
   if(!BYID[id])return;
-  if(state.sel!==id)state.cty=null;
+  if(state.sel!==id){state.cty=null;state.twn=null}
   state.sel=id;state.bucket="blend";state.type=BYID[id].type;
   setView("race",true);window.scrollTo(0,0);
 }
@@ -446,6 +446,33 @@ function liveMap(hostId,r,valFn,tipFn){
   });
   svg.appendChild(sg("path",{d:G.outline,fill:"none",stroke:css("--text"),"stroke-width":".8","pointer-events":"none",opacity:".35"}));
   if(!hit){host.innerHTML='<div class="sub">This race is modeled as one unit, so there is no county breakdown to draw.</div>';return}
+  host.appendChild(svg);
+}
+function townMap(hostId,r,selectable,lt){
+  var host=$("#"+hostId);if(!host)return;host.innerHTML="";
+  var G=GEO.counties[r.state],T=GEO.towns&&GEO.towns[r.state];
+  if(!G||!T||!r.towns){host.innerHTML='<div class="sub">No town map for this race.</div>';return}
+  var svg=sg("svg",{viewBox:"0 0 "+G.w+" "+G.h,role:"img","aria-label":r.label+" town map"});
+  var data={};r.towns.forEach(function(t){data[t[0]]=t});
+  var selP=null;
+  Object.keys(T.items).forEach(function(f){
+    var it=T.items[f],t=data[f],p=sg("path",{d:it.d});
+    if(t){
+      var tt=t[2]+t[3],m=tt?100*(t[3]-t[2])/tt:null,w=lt&&lt[f],tip;
+      if(lt){
+        if(w){var wt=w[0]+w[1];m=100*(w[1]-w[0])/wt;tip="<b>"+t[1]+"</b><br>"+pc1(100*w[2])+" in<br>"+candName(r.other)+" "+nf(w[0])+" ("+pc1(100*w[0]/wt)+")<br>"+candName(r.rep)+" "+nf(w[1])+" ("+pc1(100*w[1]/wt)+")<br>"+fmtM(m)}
+        else{tip="<b>"+t[1]+"</b><br>No votes in yet<br>Baseline "+fmtM(m);m=null}
+      } else tip="<b>"+t[1]+"</b><br>"+(m==null?"n/a":fmtM(m))+"<br>"+nf(tt)+" baseline votes";
+      p.setAttribute("class","ct in"+(selectable&&state.twn===f?" selc":""));
+      p.style.fill=m==null?css("--off"):colorFor(m);
+      p.addEventListener("mousemove",function(e){showTip(e,tip)});
+      p.addEventListener("mouseleave",hideTip);
+      if(selectable){p.style.cursor="pointer";p.addEventListener("click",function(){state.twn=state.twn===f?null:f;drawRace()});if(state.twn===f)selP=p}
+    } else p.setAttribute("class","ct out");
+    svg.appendChild(p);
+  });
+  if(selP)svg.appendChild(selP);
+  svg.appendChild(sg("path",{d:G.outline,fill:"none",stroke:css("--text"),"stroke-width":".8","pointer-events":"none",opacity:".35"}));
   host.appendChild(svg);
 }
 function distChart(res){
@@ -611,6 +638,28 @@ function drawRace(){
     return '<tr class="row'+(state.cty===c[0]?' selrow':'')+'" data-f="'+c[0]+'" tabindex="0"><td>'+c[1]+'</td><td>'+(w?pc1(100*w[2]):'0.0%')+'</td><td>'+(w?nf(w[8]):'0')+'</td><td>'+(t?pc1(100*w[8]/t):'n/a')+'</td><td>'+(w?nf(w[9]):'0')+'</td><td>'+(t?pc1(100*w[9]/t):'n/a')+'</td><td>'+(t?'<span class="pill '+cls(w[11])+'">'+fmtM(w[11])+'</span>':'n/a')+'</td></tr>';
   });
   h+=bigTable("t1",'<th>County</th><th>% in</th><th>'+dn+' votes</th><th>%</th><th>'+rn+' votes</th><th>%</th><th>Margin</th>',trs,'counties');
+  /* ---- 2b. town baselines (Maine and Vermont) ---- */
+  var hasTowns=!!(r.towns&&GEO.towns&&GEO.towns[r.state]);
+  var lt=(res&&res.towns)||{},tin=Object.keys(lt).length,townLive=hasTowns&&live&&tin>0;
+  if(hasTowns){
+    var cname={};r.counties.forEach(function(c){cname[c[0]]=c[1]});
+    h+='<h2 class="rp-h">'+(townLive?'Town results':'Town baselines')+'</h2>';
+    h+='<div class="rp-grid"><div class="card mapc"><h3 style="margin-top:0;border:0;padding:0">'+(townLive?'Margin of the votes counted so far':'Baseline margin by town')+'</h3><div id="townmap"></div>'
+      +'<div class="sub" style="margin-top:6px">Hover or click a town. '+(townLive?tin+' of '+r.towns.length+' towns have votes in. Gray towns have not reported.':r.towns.length+' towns have projected votes. Gray areas have none'+(r.type==="House"?' or sit outside the district':'')+'.')+'</div></div>';
+    h+='<div class="card" id="towncard"></div></div>';
+    var tl=r.towns.slice().sort(function(a,b){return (b[2]+b[3])-(a[2]+a[3])});
+    var trt=tl.map(function(t){
+      var tt=t[2]+t[3],m=100*(t[3]-t[2])/tt,w=townLive&&lt[t[0]];
+      if(townLive){
+        if(!w)return '<tr class="trow'+(state.twn===t[0]?' selrow':'')+'" data-t="'+t[0]+'" tabindex="0"><td>'+t[1]+'</td><td>'+(cname[t[4]]||'')+'</td><td>0.0%</td><td>0</td><td>n/a</td><td>0</td><td>n/a</td><td><span class="pill x">pending</span></td></tr>';
+        var wt=w[0]+w[1],wm=100*(w[1]-w[0])/wt;
+        return '<tr class="trow'+(state.twn===t[0]?' selrow':'')+'" data-t="'+t[0]+'" tabindex="0"><td>'+t[1]+'</td><td>'+(cname[t[4]]||'')+'</td><td>'+pc1(100*w[2])+'</td><td>'+nf(w[0])+'</td><td>'+pc1(100*w[0]/wt)+'</td><td>'+nf(w[1])+'</td><td>'+pc1(100*w[1]/wt)+'</td><td><span class="pill '+cls(wm)+'">'+fmtM(wm)+'</span></td></tr>';
+      }
+      return '<tr class="trow'+(state.twn===t[0]?' selrow':'')+'" data-t="'+t[0]+'" tabindex="0"><td>'+t[1]+'</td><td>'+(cname[t[4]]||'')+'</td><td>'+nf(t[2])+'</td><td>'+pc1(100*t[2]/tt)+'</td><td>'+nf(t[3])+'</td><td>'+pc1(100*t[3]/tt)+'</td><td><span class="pill '+cls(m)+'">'+fmtM(m)+'</span></td></tr>';
+    });
+    h+=bigTable("t3",townLive?'<th>Town</th><th>County</th><th>% in</th><th>'+dn+' votes</th><th>%</th><th>'+rn+' votes</th><th>%</th><th>Margin</th>':'<th>Town</th><th>County</th><th>'+dn+' votes</th><th>%</th><th>'+rn+' votes</th><th>%</th><th>Margin</th>',trt,'towns');
+    if(r.town_note)h+='<div class="sub" style="margin-top:8px">'+r.town_note+'</div>';
+  }
   /* ---- 3. projection ---- */
   h+='<h2 class="rp-h">Projected remaining and final votes</h2>';
   if(res){
@@ -710,8 +759,30 @@ function drawRace(){
       cc.innerHTML=x;
     }
   }
+  if(hasTowns){
+    townMap("townmap",r,true,townLive?lt:null);
+    var tc=$("#towncard"),tw=state.twn&&r.towns.filter(function(x){return x[0]===state.twn})[0];
+    if(tc){
+      if(!tw)tc.innerHTML='<div class="empty" style="padding:20px 6px">Click a town on the map or a row in the table.</div>';
+      else{
+        var tt2=tw[2]+tw[3],tm=100*(tw[3]-tw[2])/tt2,lw=townLive&&lt[tw[0]],ccn=(r.counties.filter(function(c){return c[0]===tw[4]})[0]||[0,""])[1];
+        if(lw){var lt2=lw[0]+lw[1],lm=100*(lw[1]-lw[0])/lt2;
+          tc.innerHTML='<h3 style="margin-top:0;border:0;padding:0">'+tw[1]+'</h3><div class="big '+cls(lm)+'" style="font-size:44px">'+fmtM(lm)+'</div><dl class="kv">'
+            +'<dt>County</dt><dd>'+ccn+'</dd><dt>% in</dt><dd>'+pc1(100*lw[2])+'</dd>'
+            +'<dt>'+dn+'</dt><dd>'+nf(lw[0])+' ('+pc1(100*lw[0]/lt2)+')</dd>'
+            +'<dt>'+rn+'</dt><dd>'+nf(lw[1])+' ('+pc1(100*lw[1]/lt2)+')</dd>'
+            +'<dt>Baseline</dt><dd>'+fmtM(tm)+' on '+nf(tt2)+' votes</dd></dl>';
+        } else tc.innerHTML='<h3 style="margin-top:0;border:0;padding:0">'+tw[1]+'</h3><div class="big '+(townLive?'':cls(tm))+'" style="font-size:44px">'+(townLive?'No votes in':fmtM(tm))+'</div><dl class="kv">'
+          +'<dt>County</dt><dd>'+ccn+'</dd>'
+          +'<dt>'+dn+'</dt><dd>'+nf(tw[2])+' ('+pc1(100*tw[2]/tt2)+')</dd>'
+          +'<dt>'+rn+'</dt><dd>'+nf(tw[3])+' ('+pc1(100*tw[3]/tt2)+')</dd>'
+          +'<dt>Baseline</dt><dd>'+fmtM(tm)+' on '+nf(tt2)+' votes</dd></dl>';
+      }
+    }
+    box.querySelectorAll("tr.trow").forEach(function(tr){tr.addEventListener("click",function(){state.twn=state.twn===tr.dataset.t?null:tr.dataset.t;drawRace()})});
+  }
   box.querySelectorAll("tr.row").forEach(function(tr){tr.addEventListener("click",function(){state.cty=state.cty===tr.dataset.f?null:tr.dataset.f;drawRace()})});
-  box.querySelectorAll("[data-tog]").forEach(function(bt){bt.addEventListener("click",function(){var k=bt.dataset.tog,cur=state.open[k];if(cur===undefined)cur=(k==="t1"?r.counties.length:(res?res.counties.length:0))<=25;state.open[k]=!cur;drawRace()})});
+  box.querySelectorAll("[data-tog]").forEach(function(bt){bt.addEventListener("click",function(){var k=bt.dataset.tog,cur=state.open[k];if(cur===undefined)cur=(k==="t1"?r.counties.length:k==="t3"?(r.towns?r.towns.length:0):(res?res.counties.length:0))<=25;state.open[k]=!cur;drawRace()})});
   window.scrollTo(0,sy);
 }
 function drawDetail(){
@@ -735,7 +806,7 @@ function drawDetail(){
   h+='</dl>';
   if(r.buckets&&r.buckets.length){
     h+='<h3>County map</h3><div class="rowlist" id="bk"></div>';
-  } else h+='<h3>County map</h3>';
+  } else h+='<h3>'+(r.towns?'Town map':'County map')+'</h3>';
   h+='<div id="cmap"></div>';
   if(r.method)h+='<h3>How the baseline was set</h3><div class="sub">'+r.method+'</div>';
   if(r.notes)h+='<div class="sub" style="margin-top:6px">'+r.notes+'</div>';
@@ -750,6 +821,7 @@ function drawDetail(){
   drawCounty(r);
 }
 function drawCounty(r){
+  if(r.towns&&GEO.towns&&GEO.towns[r.state]){townMap("cmap",r,false);return}
   var host=$("#cmap"),G=GEO.counties[r.state];
   var svg=sg("svg",{viewBox:"0 0 "+G.w+" "+G.h,role:"img","aria-label":r.label+" county map"});
   var data={};r.counties.forEach(function(c){data[c[0]]=c});
