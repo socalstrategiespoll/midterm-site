@@ -925,10 +925,10 @@ function firstPrice(m){
   return op&&op.length?num(op[0]):null;
 }
 function parseSide(m){
-  var bid=amt(m.bestBidQuote),ask=amt(m.bestAskQuote),last=firstPrice(m);
+  var bid=amt(m.bestBidQuote!=null?m.bestBidQuote:m.bestBid),ask=amt(m.bestAskQuote!=null?m.bestAskQuote:m.bestAsk),last=firstPrice(m);
   var book=bid!=null&&ask!=null&&!(bid===0&&ask===1)&&ask>=bid;
   var mid=book?(bid+ask)/2:last;
-  return {bid:bid==null?null:bid*100,ask:ask==null?null:ask*100,mid:mid==null?null:mid*100,spread:book?(ask-bid)*100:null};
+  return {bid:bid==null?null:bid*100,ask:ask==null?null:ask*100,mid:mid==null?null:mid*100,spread:book?(ask-bid)*100:null,ms:m.slug||null};
 }
 /* races where the Democratic side of the model is an independent (counted as D) */
 var PM_D_ALIAS={S2026NE02:/osborn|independent/i};
@@ -947,6 +947,16 @@ function parseEvent(ev,dRe){
   out.thin=out.R.spread==null||out.R.spread>8;
   return out;
 }
+function pmBbo(side){
+  /* the event payload can come back without quotes; the market BBO endpoint always has them */
+  if(!side||!side.ms||side.mid!=null)return Promise.resolve();
+  return fetch("https://gateway.polymarket.us/v1/markets/"+encodeURIComponent(side.ms)+"/bbo").then(function(r){if(!r.ok)throw new Error("http "+r.status);return r.json()}).then(function(j){
+    var d=j.marketData||j,bid=amt(d.bestBid),ask=amt(d.bestAsk),last=amt(d.currentPx);if(last==null)last=amt(d.longQuote);if(last==null)last=amt(d.lastTradePx);
+    var book=bid!=null&&ask!=null&&!(bid===0&&ask===1)&&ask>=bid,mid=book?(bid+ask)/2:last;
+    side.bid=bid==null?null:bid*100;side.ask=ask==null?null:ask*100;side.mid=mid==null?null:mid*100;side.spread=book?(ask-bid)*100:null;
+  }).catch(function(){});
+}
+function pmFill(p){return p?Promise.all([pmBbo(p.R),pmBbo(p.D)]).then(function(){if(p.R)p.thin=p.R.spread==null||p.R.spread>8;return p}):p}
 function pmGet(slug){
   return fetch(PM_API+encodeURIComponent(slug)).then(function(r){
     if(!r.ok)throw new Error("http "+r.status);return r.json();
@@ -959,7 +969,7 @@ function pmRace(r){
     return pmGet(slugs[i++]).then(function(a){
       var ev=Array.isArray(a)?a[0]:(a&&a.event?a.event:a);
       var p=ev?parseEvent(ev,PM_D_ALIAS[r.id]):null;
-      if(p){p.slug=ev.slug;return p}
+      if(p){p.slug=ev.slug;return pmFill(p)}
       return step();
     },function(e){if(/http 404/.test(e&&e.message))return step();throw e});
   }
@@ -968,7 +978,7 @@ function pmRace(r){
 function pmChamber(){
   var defs={House:"which-party-will-win-the-house-in-2026",Senate:"which-party-will-win-the-senate-in-2026"};
   return Promise.all(Object.keys(defs).map(function(t){
-    return pmGet(defs[t]).then(function(a){var ev=Array.isArray(a)?a[0]:(a&&a.event?a.event:a);var p=ev&&parseEvent(ev);if(p)PMCH[t]=p}).catch(function(){});
+    return pmGet(defs[t]).then(function(a){var ev=Array.isArray(a)?a[0]:(a&&a.event?a.event:a);var p=ev&&parseEvent(ev);return pmFill(p).then(function(){if(p)PMCH[t]=p})}).catch(function(){});
   }));
 }
 function pmLoad(){
