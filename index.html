@@ -249,7 +249,7 @@ table.res tr.tot td{border-top:2px solid var(--text);font-weight:600}
 </section>
 
 <div class="foot">
-  <p>Race margins are two-party, Republican minus Democratic. Model win probability is the chance the Republican wins, from our live county model on the engine. Polymarket prices are in cents for a Yes share on each party, read live from Polymarket US in your browser.</p>
+  <p>Race margins are two-party, Republican minus Democratic. Model win probability is the chance the Republican wins, from our live county model on the engine. Polymarket prices are in cents for a Yes share on each party, read live from Polymarket in your browser.</p>
   <p>The chamber bars count every seat. Races we model use our baseline margin, and every other seat goes to whichever party VoteHub gives the better chance. Senate seats and governorships not on the ballot this year count for the party that holds them. The paler part of each bar is those safe or off-year seats.</p>
   <p id="stamp"></p>
   <p>Edge is the gap between the model probability and what you would pay on Polymarket, using the ask on whichever side is cheaper against the model. A big edge can mean the market knows something the model does not, and thin markets can show gaps that nobody can actually trade, so treat it as a place to look.</p>
@@ -908,7 +908,7 @@ function drawBoard(){
 /* ---------- Polymarket ---------- */
 var PM={}, PMCH={}, PM_STATE={when:null,ok:0,unmatched:0,neterr:0,running:false,n:0};
 var NAMES={AL:"alabama",AK:"alaska",AZ:"arizona",AR:"arkansas",CA:"california",CO:"colorado",CT:"connecticut",DE:"delaware",FL:"florida",GA:"georgia",HI:"hawaii",ID:"idaho",IL:"illinois",IN:"indiana",IA:"iowa",KS:"kansas",KY:"kentucky",LA:"louisiana",ME:"maine",MD:"maryland",MA:"massachusetts",MI:"michigan",MN:"minnesota",MS:"mississippi",MO:"missouri",MT:"montana",NE:"nebraska",NV:"nevada",NH:"new-hampshire",NJ:"new-jersey",NM:"new-mexico",NY:"new-york",NC:"north-carolina",ND:"north-dakota",OH:"ohio",OK:"oklahoma",OR:"oregon",PA:"pennsylvania",RI:"rhode-island",SC:"south-carolina",SD:"south-dakota",TN:"tennessee",TX:"texas",UT:"utah",VT:"vermont",VA:"virginia",WA:"washington",WV:"west-virginia",WI:"wisconsin",WY:"wyoming"};
-var PM_API="https://gateway.polymarket.us/v1/events/slug/";   /* Polymarket US public market data, no key needed */
+var PM_API="https://gamma-api.polymarket.com/events?slug=";
 function pmSlugs(r){
   var n=NAMES[r.state];
   if(r.type==="House")return [r.state.toLowerCase()+"-"+r.id.slice(-2)+"-house-election-winner"];
@@ -916,27 +916,19 @@ function pmSlugs(r){
   return [n+"-governor-winner-2026",n+"-governor-election-winner",n+"-governor-election-winner-2026"];
 }
 function num(x){var v=parseFloat(x);return isFinite(v)?v:null}
-function amt(a){return a&&typeof a==="object"?num(a.value):num(a)}
-function firstPrice(m){
-  var sd=m.marketSides||[],i,s;
-  for(i=0;i<sd.length;i++){s=sd[i];if(s&&s.long===true&&num(s.price)!=null)return num(s.price)}
-  for(i=0;i<sd.length;i++){s=sd[i];if(s&&/yes|long/i.test((s.marketSideType||"")+" "+(s.identifier||"")+" "+(s.description||""))&&num(s.price)!=null)return num(s.price)}
-  var op=m.outcomePrices;if(typeof op==="string"){try{op=JSON.parse(op)}catch(e){op=null}}
-  return op&&op.length?num(op[0]):null;
-}
+function firstPrice(m){var op=m.outcomePrices;if(typeof op==="string"){try{op=JSON.parse(op)}catch(e){op=null}}return op&&op.length?num(op[0]):null}
 function parseSide(m){
-  var bid=amt(m.bestBidQuote!=null?m.bestBidQuote:m.bestBid),ask=amt(m.bestAskQuote!=null?m.bestAskQuote:m.bestAsk),last=firstPrice(m);
+  var bid=num(m.bestBid),ask=num(m.bestAsk),last=firstPrice(m);
   var book=bid!=null&&ask!=null&&!(bid===0&&ask===1)&&ask>=bid;
   var mid=book?(bid+ask)/2:last;
-  return {bid:bid==null?null:bid*100,ask:ask==null?null:ask*100,mid:mid==null?null:mid*100,spread:book?(ask-bid)*100:null,ms:m.slug||null};
+  return {bid:bid==null?null:bid*100,ask:ask==null?null:ask*100,mid:mid==null?null:mid*100,spread:book?(ask-bid)*100:null};
 }
 /* races where the Democratic side of the model is an independent (counted as D) */
 var PM_D_ALIAS={S2026NE02:/osborn|independent/i};
 function parseEvent(ev,dRe){
-  if(ev.event&&!ev.markets)ev=ev.event;   /* the US API wraps the event as {event:{...}} */
   var out={vol:num(ev.volume)};
   (ev.markets||[]).forEach(function(m){
-    var q=(m.question||"")+" "+(m.title||"")+" "+(m.titleShort||"")+" "+(m.subtitle||"");
+    var q=(m.question||"")+" "+(m.groupItemTitle||"");
     var side;
     if(dRe){side=dRe.test(q)?"D":(/republican|ricketts/i.test(q)?"R":null)}
     else side=/republican/i.test(q)?"R":(/democrat/i.test(q)?"D":null);
@@ -947,16 +939,6 @@ function parseEvent(ev,dRe){
   out.thin=out.R.spread==null||out.R.spread>8;
   return out;
 }
-function pmBbo(side){
-  /* the event payload can come back without quotes; the market BBO endpoint always has them */
-  if(!side||!side.ms||side.mid!=null)return Promise.resolve();
-  return fetch("https://gateway.polymarket.us/v1/markets/"+encodeURIComponent(side.ms)+"/bbo").then(function(r){if(!r.ok)throw new Error("http "+r.status);return r.json()}).then(function(j){
-    var d=j.marketData||j,bid=amt(d.bestBid),ask=amt(d.bestAsk),last=amt(d.currentPx);if(last==null)last=amt(d.longQuote);if(last==null)last=amt(d.lastTradePx);
-    var book=bid!=null&&ask!=null&&!(bid===0&&ask===1)&&ask>=bid,mid=book?(bid+ask)/2:last;
-    side.bid=bid==null?null:bid*100;side.ask=ask==null?null:ask*100;side.mid=mid==null?null:mid*100;side.spread=book?(ask-bid)*100:null;
-  }).catch(function(){});
-}
-function pmFill(p){return p?Promise.all([pmBbo(p.R),pmBbo(p.D)]).then(function(){if(p.R)p.thin=p.R.spread==null||p.R.spread>8;return p}):p}
 function pmGet(slug){
   return fetch(PM_API+encodeURIComponent(slug)).then(function(r){
     if(!r.ok)throw new Error("http "+r.status);return r.json();
@@ -967,18 +949,18 @@ function pmRace(r){
   function step(){
     if(i>=slugs.length)return Promise.resolve(null);
     return pmGet(slugs[i++]).then(function(a){
-      var ev=Array.isArray(a)?a[0]:(a&&a.event?a.event:a);
+      var ev=Array.isArray(a)?a[0]:a;
       var p=ev?parseEvent(ev,PM_D_ALIAS[r.id]):null;
-      if(p){p.slug=ev.slug;return pmFill(p)}
+      if(p){p.slug=ev.slug;return p}
       return step();
-    },function(e){if(/http 404/.test(e&&e.message))return step();throw e});
+    });
   }
   return step();
 }
 function pmChamber(){
   var defs={House:"which-party-will-win-the-house-in-2026",Senate:"which-party-will-win-the-senate-in-2026"};
   return Promise.all(Object.keys(defs).map(function(t){
-    return pmGet(defs[t]).then(function(a){var ev=Array.isArray(a)?a[0]:(a&&a.event?a.event:a);var p=ev&&parseEvent(ev);return pmFill(p).then(function(){if(p)PMCH[t]=p})}).catch(function(){});
+    return pmGet(defs[t]).then(function(a){var ev=Array.isArray(a)?a[0]:a;var p=ev&&parseEvent(ev);if(p)PMCH[t]=p}).catch(function(){});
   }));
 }
 function pmLoad(){
@@ -1008,7 +990,7 @@ function drawPmStatus(){
   var s=$("#pmStatus");if(!s)return;
   s.className="pmstat";
   if(PM_STATE.running&&!PM_STATE.when){s.textContent="Loading Polymarket...";return}
-  if(PM_STATE.neterr>=4&&!PM_STATE.ok){s.className="pmstat bad";s.textContent="Could not reach Polymarket US from this browser.";return}
+  if(PM_STATE.neterr>=4&&!PM_STATE.ok){s.className="pmstat bad";s.textContent="Could not reach Polymarket from this browser.";return}
   if(PM_STATE.when){s.textContent="Polymarket matched "+PM_STATE.ok+" of "+PM_STATE.n+" races, updated "+PM_STATE.when.toLocaleTimeString([],{hour:"numeric",minute:"2-digit"})}
 }
 function pmRestore(){
