@@ -76,6 +76,8 @@ svg{display:block;width:100%;height:auto}
 .cdp.tr:hover,.cdp.tr.sel{stroke:var(--hi);stroke-width:2}
 .bub{cursor:pointer;stroke:var(--bg);stroke-width:1.4;filter:drop-shadow(0 0 6px color-mix(in srgb,var(--glow,transparent) 70%,transparent))}
 .bub:hover,.bub.sel{stroke:var(--hi);stroke-width:2.6}
+.nbub{cursor:pointer;stroke:var(--bg);stroke-width:.8;fill-opacity:.82}
+.nbub:hover,.nbub.sel{stroke:var(--hi);stroke-width:2}
 .ct{stroke:var(--bg);stroke-width:.4}
 .ct.out{fill:var(--off);opacity:.7}
 .ct.in:hover{stroke:var(--hi);stroke-width:1.4}
@@ -426,7 +428,7 @@ function loadLive(id){
 function candName(s){return String(s||"").replace(/\s*\(.*?\)\s*$/,"")}
 function nf(x){return x==null?"n/a":Math.round(x).toLocaleString()}
 function pc1(x){return x==null||!isFinite(x)?"n/a":x.toFixed(1)+"%"}
-function liveMap(hostId,r,valFn,tipFn){
+function liveMap(hostId,r,valFn,tipFn,bubFn){
   var host=$("#"+hostId);if(!host)return;host.innerHTML="";
   var G=GEO.counties[r.state];if(!G){host.innerHTML='<div class="sub">No county map for this race.</div>';return}
   var svg=sg("svg",{viewBox:"0 0 "+G.w+" "+G.h,role:"img","aria-label":r.label+" county map"});
@@ -436,17 +438,40 @@ function liveMap(hostId,r,valFn,tipFn){
     var it=G.items[f],p=sg("path",{d:it.d});
     if(inR[f]){
       hit++;var v=valFn(f);
-      p.setAttribute("class","ct in"+(state.cty===f?" selc":""));
-      p.style.fill=v==null?css("--off"):colorFor(v);p.style.cursor="pointer";
+      p.setAttribute("class","ct in"+(state.cty===f?" selc":""));p.setAttribute("data-f",f);
+      p.style.fill=bubFn?css("--mid"):(v==null?css("--off"):colorFor(v));p.style.cursor="pointer";
       p.addEventListener("mousemove",function(e){showTip(e,tipFn(f,it.n))});
       p.addEventListener("mouseleave",hideTip);
       p.addEventListener("click",function(){state.cty=state.cty===f?null:f;drawRace()});
-    } else p.setAttribute("class","ct out");
+    } else {p.setAttribute("class","ct out");if(bubFn)p.style.fill=css("--panel")}   /* bubble map: fade counties outside the race so the district shows */
     svg.appendChild(p);
   });
   svg.appendChild(sg("path",{d:G.outline,fill:"none",stroke:css("--text"),"stroke-width":".8","pointer-events":"none",opacity:".35"}));
   if(!hit){host.innerHTML='<div class="sub">This race is modeled as one unit, so there is no county breakdown to draw.</div>';return}
   host.appendChild(svg);
+  if(bubFn)addBubbles(svg,G,inR,bubFn,tipFn);
+}
+/* Net-vote bubbles: one circle per county at its center, area proportional to the net votes (R minus D, signed),
+   blue or red by which side nets them. Largest drawn first so small counties stay on top and clickable. */
+function addBubbles(svg,G,inR,bubFn,tipFn){
+  var pts=[],mx=0;
+  Array.prototype.forEach.call(svg.querySelectorAll("path.ct.in"),function(p){
+    var f=p.getAttribute("data-f"),v=bubFn(f);if(v==null||!isFinite(v)||Math.abs(v)<1)return;
+    var b;try{b=p.getBBox()}catch(e){return}
+    pts.push({f:f,v:v,x:b.x+b.width/2,y:b.y+b.height/2});mx=Math.max(mx,Math.abs(v));
+  });
+  if(!mx)return;
+  var rMax=Math.min(G.w,G.h)*0.075,g=sg("g",{});
+  pts.sort(function(a,b){return Math.abs(b.v)-Math.abs(a.v)}).forEach(function(q){
+    var rad=Math.max(1.6,rMax*Math.sqrt(Math.abs(q.v)/mx)),col=q.v>=0?css("--rep"):css("--dem");
+    var c=sg("circle",{cx:q.x.toFixed(1),cy:q.y.toFixed(1),r:rad.toFixed(1),"class":"nbub"+(state.cty===q.f?" sel":"")});
+    c.style.fill=col;
+    c.addEventListener("mousemove",function(e){showTip(e,tipFn(q.f,(G.items[q.f]||{}).n||q.f))});
+    c.addEventListener("mouseleave",hideTip);
+    c.addEventListener("click",function(){state.cty=state.cty===q.f?null:q.f;drawRace()});
+    g.appendChild(c);
+  });
+  svg.appendChild(g);
 }
 function townMap(hostId,r,selectable,lt){
   var host=$("#"+hostId);if(!host)return;host.innerHTML="";
@@ -670,7 +695,7 @@ function drawRace(){
     h+='<div><dt>Projected final votes</dt><dd>'+nf(fR+fD)+'<small>'+rn+' '+nf(fR)+', '+dn+' '+nf(fD)+'</small></dd></div>';
     h+='</dl>';
     h+='<div class="card" style="margin-bottom:18px"><h3 style="margin-top:0;border:0;padding:0">Where the final margin could land</h3>'+distChart(res)+'<div class="sub">Shaded band is the 90% range. Solid line is the median, dashed line is a tie.</div></div>';
-    h+='<div class="rp-grid3"><div class="card mapc"><h3 style="margin-top:0;border:0;padding:0">Projected remaining votes</h3><div id="cmapB"></div><div class="sub" style="margin-top:6px">Color is the projected margin of the votes still out. Hover for the projected split. Gray counties have nothing left.</div></div>';
+    h+='<div class="rp-grid3"><div class="card mapc"><h3 style="margin-top:0;border:0;padding:0">Projected remaining votes</h3><div id="cmapB"></div><div class="sub" style="margin-top:6px">Each bubble is the projected net votes still out in that county: size is how many votes the leader of the remaining vote nets, color is who nets them. Hover for the projected split. Counties without a bubble have nothing left.</div></div>';
     h+='<div class="card mapc"><h3 style="margin-top:0;border:0;padding:0">Projected final votes</h3><div id="cmapC"></div><div class="sub" style="margin-top:6px">Color is the projected final margin in each county. Hover for the projected final votes.</div></div></div>';
     var trs2=[];
     list.forEach(function(c){
@@ -728,9 +753,9 @@ function drawRace(){
     liveMap("cmapB",r,function(f){var w=rows[f];return w&&w[4]>=1?w[10]:null},function(f,name){
       var w=rows[f];if(!w)return "<b>"+name+"</b>";
       if(w[4]<1)return "<b>"+name+"</b><br>Nothing left to count";
-      var m=w[10],dl=m==null?null:w[4]*(1-m/100)/2,rl=m==null?null:w[4]*(1+m/100)/2;
-      return "<b>"+name+"</b><br>"+nf(w[4])+" votes left<br>"+(m==null?"no projection":candName(r.other)+" "+nf(dl)+"<br>"+candName(r.rep)+" "+nf(rl)+"<br>remainder "+fmtM(m));
-    });
+      var m=w[10],dl=m==null?null:w[4]*(1-m/100)/2,rl=m==null?null:w[4]*(1+m/100)/2,net=m==null?null:w[4]*m/100;
+      return "<b>"+name+"</b><br>"+nf(w[4])+" votes left<br>"+(m==null?"no projection":candName(r.other)+" "+nf(dl)+"<br>"+candName(r.rep)+" "+nf(rl)+"<br>net "+(net>=0?candName(r.rep):candName(r.other))+" +"+nf(Math.abs(net))+" (remainder "+fmtM(m)+")");
+    },function(f){var w=rows[f];return w&&w[4]>=1&&w[10]!=null?w[4]*w[10]/100:null});
     liveMap("cmapC",r,function(f){var w=rows[f];return w?w[5]:null},function(f,name){
       var w=rows[f];if(!w||w[5]==null)return "<b>"+name+"</b>";
       var fv=finalVotes(w);return "<b>"+name+"</b><br>"+nf(fv[2])+" projected votes<br>"+candName(r.other)+" "+nf(fv[0])+"<br>"+candName(r.rep)+" "+nf(fv[1])+"<br>final "+fmtM(w[5]);
