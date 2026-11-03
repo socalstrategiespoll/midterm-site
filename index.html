@@ -307,12 +307,17 @@ function mw(r){var m=MODEL[r.id];return m&&m.win_prob!=null?100*m.win_prob:null}
 function loadModel(){
   var base=engineBase();if(!base)return;
   fetch(base+"/api/projection?t="+Date.now()).then(function(x){if(!x.ok)throw new Error("HTTP "+x.status);return x.json()}).then(function(j){
-    MODEL=j.races||{};MODEL_STATE={when:Date.now(),err:null,upd:j.updated,mode:j.mode};modelRefresh();
+    /* a restarting model (a redeploy) first answers with the bare pre-election forecast and then fills races back in.
+       Never let that replace live numbers already on screen: a race that was counting keeps its last live projection
+       until the model reports it live again. */
+    var nr=j.races||{},kept=0;
+    Object.keys(MODEL).forEach(function(id){var o=MODEL[id],n=nr[id];if(o&&o.state&&o.state!=="pre"&&(!n||n.state==="pre")){nr[id]=o;kept++}});
+    MODEL=nr;MODEL_STATE={when:Date.now(),err:null,upd:j.updated,mode:kept?"live":j.mode,held:kept};modelRefresh();
   }).catch(function(e){MODEL_STATE.err=(e instanceof TypeError?"could not connect to the model":String(e.message||e));modelRefresh()});
 }
 function modelRefresh(){
   if(state.view==="maps"&&state.mapv!=="fc"&&typeof drawNational==="function")drawNational();   /* live map modes follow each model update */
-  var ms=$("#mdlStatus");if(ms){ms.textContent=MODEL_STATE.err?"Model odds unavailable: "+MODEL_STATE.err:(MODEL_STATE.when?"Model odds updated "+new Date(MODEL_STATE.when).toLocaleTimeString():"");ms.className="pmstat"+(MODEL_STATE.err?" bad":"")}
+  var ms=$("#mdlStatus");if(ms){ms.textContent=MODEL_STATE.err?"Model odds unavailable: "+MODEL_STATE.err:(MODEL_STATE.when?"Model odds updated "+new Date(MODEL_STATE.when).toLocaleTimeString()+(MODEL_STATE.held?" (model restarting: "+MODEL_STATE.held+" races showing their last live numbers)":""):"");ms.className="pmstat"+(MODEL_STATE.err?" bad":"")}
   if(state.view==="board")drawBoard();else if(state.view==="race")drawRace();
 }
 function edge(r){
@@ -436,6 +441,8 @@ function engineBase(){var q=new URLSearchParams(location.search).get("engine");r
 function loadLive(id){
   var base=engineBase();if(!base||!id)return;
   fetch(base+"/api/race/"+encodeURIComponent(id)+"?t="+Date.now()).then(function(x){if(!x.ok)throw new Error("HTTP "+x.status);return x.json()}).then(function(res){
+    var o=LIVE[id]&&LIVE[id].res;
+    if(o&&o.state&&o.state!=="pre"&&res&&res.state==="pre"){LIVE[id].tried=Date.now();return}   /* model restarting: keep the last live detail */
     LIVE[id]={res:res,when:Date.now(),err:null};
     if(state.view==="race"&&state.sel===id)drawRace();
   }).catch(function(e){
