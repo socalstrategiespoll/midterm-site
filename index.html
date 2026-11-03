@@ -220,6 +220,11 @@ table.res tr.tot td{border-top:2px solid var(--text);font-weight:600}
       <button data-s="1" aria-pressed="true">Shapes</button>
       <button data-s="0" aria-pressed="false">Bubbles</button>
     </div>
+    <div class="seg" id="mapvSeg" role="group" aria-label="What the map shows">
+      <button data-v="fc" aria-pressed="true">Forecast</button>
+      <button data-v="raw" aria-pressed="false">Current vote</button>
+      <button data-v="proj" aria-pressed="false">Projected final</button>
+    </div>
     <span class="note" id="typeNote"></span>
     <div class="legend" aria-label="Color key"><span>Dem</span><span class="ramp" id="ramp"></span><span>Rep</span></div>
   </div>
@@ -262,7 +267,7 @@ table.res tr.tot td{border-top:2px solid var(--text);font-weight:600}
 <script>
 "use strict";
 var DATA, GEO, RACES = [], BYID = {};
-var state = {open:{},cty:null,twn:null,shapes:true, view:"maps", type:"House", sel:null, bucket:"blend", sortKey:"edge", sortDir:-1, bType:"All", hideWide:false};
+var state = {open:{},cty:null,twn:null,shapes:true, mapv:"fc", view:"maps", type:"House", sel:null, bucket:"blend", sortKey:"edge", sortDir:-1, bType:"All", hideWide:false};
 
 function $(s){return document.querySelector(s)}
 function el(n,a,h){var e=document.createElement(n);if(a)for(var k in a)e.setAttribute(k,a[k]);if(h!=null)e.innerHTML=h;return e}
@@ -306,6 +311,7 @@ function loadModel(){
   }).catch(function(e){MODEL_STATE.err=(e instanceof TypeError?"could not connect to the model":String(e.message||e));modelRefresh()});
 }
 function modelRefresh(){
+  if(state.view==="maps"&&state.mapv!=="fc"&&typeof drawNational==="function")drawNational();   /* live map modes follow each model update */
   var ms=$("#mdlStatus");if(ms){ms.textContent=MODEL_STATE.err?"Model odds unavailable: "+MODEL_STATE.err:(MODEL_STATE.when?"Model odds updated "+new Date(MODEL_STATE.when).toLocaleTimeString():"");ms.className="pmstat"+(MODEL_STATE.err?" bad":"")}
   if(state.view==="board")drawBoard();else if(state.view==="race")drawRace();
 }
@@ -333,6 +339,14 @@ function raceCenter(r){
   var fip=Object.keys(GEO.states).filter(function(k){return GEO.states[k].abbr===r.state})[0];
   return GEO.states[fip].c;
 }
+/* what the national map shows: fc = pre-election baseline, raw = two-party vote counted so far, proj = model's projected final margin */
+function rawOf(r){var m=MODEL[r.id];return m&&m.raw&&(m.raw[0]+m.raw[1])>0?m.raw:null}
+function mapVal(r){
+  if(state.mapv==="raw"){var w=rawOf(r);return w?100*(w[1]-w[0])/(w[0]+w[1]):null}
+  if(state.mapv==="proj"){var m=MODEL[r.id];return m&&m.margin!=null?m.margin:null}
+  return r.headline;
+}
+function mapFill(r){var v=mapVal(r);return v==null?css("--off"):colorFor(v)}
 function drawNational(){
   var host=$("#natmap");host.innerHTML="";
   var svg=sg("svg",{viewBox:"0 0 "+GEO.w+" "+GEO.h,role:"img","aria-label":state.type+" races map"});
@@ -344,8 +358,8 @@ function drawNational(){
     var r=byState[s.abbr];
     if(t!=="House"&&r){
       p.setAttribute("class","st hasrace"+(state.sel===r.id?" sel":""));
-      p.style.fill=colorFor(r.headline);p.style.setProperty("--glow",glowFor(r.headline));
-      p.setAttribute("tabindex","0");p.setAttribute("role","button");p.setAttribute("aria-label",r.label+" "+fmtM(r.headline));
+      var v=mapVal(r);p.style.fill=mapFill(r);p.style.setProperty("--glow",v==null?"transparent":glowFor(v));
+      p.setAttribute("tabindex","0");p.setAttribute("role","button");p.setAttribute("aria-label",r.label+" "+(v==null?"no data":fmtM(v)));
       p.addEventListener("click",function(){pick(r.id)});
       p.addEventListener("keydown",function(e){if(e.key==="Enter"||e.key===" "){e.preventDefault();pick(r.id)}});
       p.addEventListener("mousemove",function(e){showTip(e,tipFor(r))});
@@ -362,8 +376,8 @@ function drawNational(){
     keys.filter(function(k){return !trk[k]}).forEach(function(k){gd.appendChild(sg("path",{d:GEO.cd[k],"class":"cdp"}))});
     keys.filter(function(k){return trk[k]}).forEach(function(k){
       var r=trk[k];drawn[r.id]=1;
-      var p=sg("path",{d:GEO.cd[k],"class":"cdp tr"+(state.sel===r.id?" sel":""),tabindex:"0",role:"button","aria-label":r.label+" "+fmtM(r.headline)});
-      p.style.fill=colorFor(r.headline);
+      var v=mapVal(r),p=sg("path",{d:GEO.cd[k],"class":"cdp tr"+(state.sel===r.id?" sel":""),tabindex:"0",role:"button","aria-label":r.label+" "+(v==null?"no data":fmtM(v))});
+      p.style.fill=mapFill(r);
       p.addEventListener("click",function(){pick(r.id)});
       p.addEventListener("keydown",function(e){if(e.key==="Enter"||e.key===" "){e.preventDefault();pick(r.id)}});
       p.addEventListener("mousemove",function(e){showTip(e,tipFor(r))});
@@ -377,8 +391,8 @@ function drawNational(){
   if(t==="House"){
     list.filter(function(r){return !drawn[r.id]}).sort(function(a,b){return b.votes-a.votes}).forEach(function(r){
       var c=raceCenter(r),rad=7+Math.sqrt(r.votes/1000)*0.42;
-      var b=sg("circle",{cx:c[0],cy:c[1],r:Math.min(rad,15).toFixed(1),"class":"bub"+(state.sel===r.id?" sel":""),tabindex:"0",role:"button","aria-label":r.label+" "+fmtM(r.headline)});
-      b.style.fill=colorFor(r.headline);b.style.setProperty("--glow",glowFor(r.headline));
+      var v=mapVal(r),b=sg("circle",{cx:c[0],cy:c[1],r:Math.min(rad,15).toFixed(1),"class":"bub"+(state.sel===r.id?" sel":""),tabindex:"0",role:"button","aria-label":r.label+" "+(v==null?"no data":fmtM(v))});
+      b.style.fill=mapFill(r);b.style.setProperty("--glow",v==null?"transparent":glowFor(v));
       b.addEventListener("click",function(){pick(r.id)});
       b.addEventListener("keydown",function(e){if(e.key==="Enter"||e.key===" "){e.preventDefault();pick(r.id)}});
       b.addEventListener("mousemove",function(e){showTip(e,tipFor(r))});
@@ -389,17 +403,21 @@ function drawNational(){
   host.appendChild(svg);
   var lst=el("div",{"class":"rowlist"});
   list.slice().sort(function(a,b){return a.label.localeCompare(b.label)}).forEach(function(r){
-    var c=el("button",{"class":"chip","aria-pressed":state.sel===r.id?"true":"false"},r.label+" "+fmtM(r.headline));
+    var v=mapVal(r),c=el("button",{"class":"chip","aria-pressed":state.sel===r.id?"true":"false"},r.label+" "+(v==null?(state.mapv==="raw"?"no votes":"n/a"):fmtM(v)));
     c.addEventListener("click",function(){pick(r.id)});lst.appendChild(c);
   });
   host.appendChild(lst);
   $("#shapeSeg").hidden=(t!=="House");
   var nb=Object.keys(drawn).length<list.length;
-  $("#typeNote").textContent=t==="House"?(state.shapes&&GEO.cd?(nb?"Districts are drawn as shapes. Bubbles mark races in states with new 2026 maps, sized by projected votes.":"Districts are drawn as shapes."):"Bubbles are districts, sized by projected votes."):"Click a state for the county map.";
+  var vn=state.mapv==="raw"?"Color is the two-party margin of the votes counted so far; gray races have no votes in. ":state.mapv==="proj"?"Color is the model's projected final margin. ":"";
+  $("#typeNote").textContent=vn+(t==="House"?(state.shapes&&GEO.cd?(nb?"Districts are drawn as shapes. Bubbles mark races in states with new 2026 maps, sized by projected votes.":"Districts are drawn as shapes."):"Bubbles are districts, sized by projected votes."):"Click a state for the county map.");
 }
 function byStateAny(ab){return RACES.some(function(r){return r.state===ab&&r.type===state.type})}
 function tipFor(r){
-  var p=PM[r.id];
+  var p=PM[r.id],m=MODEL[r.id],w=rawOf(r),h="<b>"+r.label+"</b>";
+  if(state.mapv==="raw")h+=w?"<br>Counted so far "+fmtM(100*(w[1]-w[0])/(w[0]+w[1]))+"<br>"+candName(r.other)+" "+nf(w[0])+", "+candName(r.rep)+" "+nf(w[1])+(m&&m.reporting!=null?"<br>"+pc1(100*m.reporting)+" of expected vote in":""):"<br>No votes counted yet";
+  if(state.mapv==="proj")h+=m&&m.margin!=null?"<br>Projected final "+fmtM(m.margin)+(m.p05!=null?"<br>90% range "+fmtM(m.p05)+" to "+fmtM(m.p95):"")+(m.reporting!=null?"<br>"+pc1(100*m.reporting)+" of expected vote in":""):"<br>Model projection unavailable";
+  if(state.mapv!=="fc")return h+"<br>Forecast "+fmtM(r.headline)+(mw(r)!=null?"<br>Model R win "+pct(mw(r)):"");
   return "<b>"+r.label+"</b><br>"+fmtM(r.headline)+(mw(r)!=null?"<br>Model R win "+pct(mw(r)):"")+(p&&p.R&&p.R.mid!=null?"<br>Polymarket R "+p.R.mid.toFixed(0)+"c":"");
 }
 
@@ -1067,6 +1085,7 @@ function init(){
   $("#t-maps").addEventListener("click",function(){setView("maps")});
   $("#t-board").addEventListener("click",function(){setView("board")});
   document.querySelectorAll("#typeSeg button").forEach(function(b){b.addEventListener("click",function(){state.type=b.dataset.t;if(state.sel&&BYID[state.sel].type!==state.type)state.sel=null;setSeg("#typeSeg",state.type);drawNational()})});
+  document.querySelectorAll("#mapvSeg button").forEach(function(b){b.addEventListener("click",function(){state.mapv=b.dataset.v;document.querySelectorAll("#mapvSeg button").forEach(function(x){x.setAttribute("aria-pressed",x===b)});drawNational()})});
   document.querySelectorAll("#shapeSeg button").forEach(function(b){b.addEventListener("click",function(){state.shapes=b.dataset.s==="1";document.querySelectorAll("#shapeSeg button").forEach(function(x){x.setAttribute("aria-pressed",x===b)});drawNational()})});
   document.querySelectorAll("#bTypeSeg button").forEach(function(b){b.addEventListener("click",function(){state.bType=b.dataset.t;setSeg("#bTypeSeg",state.bType);drawBoard()})});
   $("#hideWide").addEventListener("change",function(e){state.hideWide=e.target.checked;drawBoard()});
