@@ -297,8 +297,24 @@ function blendOf(r,c){
   for(var i=0;i<r.buckets.length;i++){var x=c[4+i];if(x==null)return null;v+=(cs?cs[i]:r.shares[r.buckets[i].key])*x}
   return v;
 }
+/* "Advance vote": mail and early in-person together, for states that report both in one first drop (e.g. Florida) */
+function hasAdv(r){var k=bucketKeys(r);return k.indexOf("mail")>=0&&k.indexOf("eip")>=0}
+function advOf(r,c){
+  var k=bucketKeys(r),cs=r.county_shares&&r.county_shares[c[0]],v=0,w=0;
+  ["mail","eip"].forEach(function(b){var i=k.indexOf(b),x=c[4+i],s=cs?cs[i]:r.shares[b];if(x!=null&&s){v+=s*x;w+=s}});
+  return w?v/w:null;
+}
+function advStatewide(r){var a=r.shares.mail||0,b=r.shares.eip||0;return a+b?((r.bucket_margins.mail||0)*a+(r.bucket_margins.eip||0)*b)/(a+b):null}
+/* map chips: Blended, each method, and Mail + early in-person (before Election Day) where both exist */
+function bucketChips(r){
+  var out=[{key:"blend",label:"Blended"}];
+  (r.buckets||[]).forEach(function(b){if(b.key==="ed"&&hasAdv(r))out.push({key:"adv",label:"Mail + early in-person"});out.push(b)});
+  if(hasAdv(r)&&bucketKeys(r).indexOf("ed")<0)out.push({key:"adv",label:"Mail + early in-person"});
+  return out;
+}
 function cMargin(r,c,key){
   if(key==="blend"||!r.buckets||!r.buckets.length)return blendOf(r,c);
+  if(key==="adv")return hasAdv(r)?advOf(r,c):null;
   var i=bucketKeys(r).indexOf(key);return i<0?null:c[4+i];
 }
 /* model win probability (percent chance the Republican wins), from the engine's /api/projection */
@@ -851,7 +867,7 @@ function drawRace(){
   }
   if(bks.length){
     var bk=$("#bk");
-    [{key:"blend",label:"Blended"}].concat(bks).forEach(function(b){
+    bucketChips(r).forEach(function(b){
       var c=el("button",{"class":"chip","aria-pressed":state.bucket===b.key?"true":"false"},b.label);
       c.addEventListener("click",function(){state.bucket=b.key;drawRace()});bk.appendChild(c);
     });
@@ -915,6 +931,7 @@ function drawDetail(){
   h+='<dt>Projected votes</dt><dd>'+Math.round(r.votes).toLocaleString()+'</dd>';
   if(r.buckets&&r.buckets.length){
     r.buckets.forEach(function(b){h+='<dt>'+b.label+'</dt><dd>'+fmtM(r.bucket_margins[b.key])+', '+(r.shares[b.key]*100).toFixed(0)+'% of vote</dd>'});
+    if(hasAdv(r))h+='<dt>Mail + early in-person</dt><dd>'+fmtM(advStatewide(r))+', '+((r.shares.mail+r.shares.eip)*100).toFixed(0)+'% of vote</dd>';
   }
   h+='</dl>';
   if(r.buckets&&r.buckets.length){
@@ -926,7 +943,7 @@ function drawDetail(){
   box.innerHTML=h;
   if(r.buckets&&r.buckets.length){
     var bk=$("#bk");
-    [{key:"blend",label:"Blended"}].concat(r.buckets).forEach(function(b){
+    bucketChips(r).forEach(function(b){
       var c=el("button",{"class":"chip","aria-pressed":state.bucket===b.key?"true":"false"},b.label);
       c.addEventListener("click",function(){state.bucket=b.key;drawDetail()});bk.appendChild(c);
     });
