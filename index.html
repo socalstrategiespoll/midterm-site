@@ -437,6 +437,66 @@ function openRace(id){
 /* ---------- full race page: live results, county map, then the model ---------- */
 var ENGINE_URL="https://midterm-model-xxyp.onrender.com";   /* the Render service. Open the site with ?engine=URL to test another one */
 var LIVE={};
+var HIST={};   /* race id -> {polls_close, points:[[t,margin,winR,p05,p95,reporting],...]} from /api/history/<id> */
+function loadHist(id){
+  var base=engineBase();if(!base||!id)return;
+  fetch(base+"/api/history/"+encodeURIComponent(id)+"?t="+Date.now()).then(function(x){if(!x.ok)throw new Error("HTTP "+x.status);return x.json()}).then(function(h){
+    var o=HIST[id];if(o&&o.points&&h.points&&h.points.length<o.points.length)return;   /* a restarted model with less history: keep what is on screen */
+    HIST[id]=h;if(state.view==="race"&&state.sel===id)drawHist(BYID[id]);
+  }).catch(function(){});
+}
+function etTime(t,withDay){try{return new Date(t*1000).toLocaleTimeString("en-US",{timeZone:"America/New_York",hour:"numeric",minute:"2-digit"})+(withDay?"":"")}catch(e){return new Date(t*1000).toLocaleTimeString()}}
+/* Projection over time: projected margin (with its 90% band) and the Republican's win probability, from poll close. */
+function drawHist(r){
+  var host=$("#histc");if(!host||!r)return;host.innerHTML="";
+  var h=HIST[r.id],pts=(h&&h.points)||[];
+  if(pts.length<2){
+    host.innerHTML='<div class="sub" style="font-family:var(--body);font-size:14px">'+(h&&h.polls_close?"Tracking starts when polls close at "+etTime(h.polls_close)+" ET.":"Tracking starts when polls close.")+(pts.length===1?" First point recorded at "+etTime(pts[0][0])+" ET.":"")+'</div>';return;
+  }
+  var W=640,H1=170,H2=120,gap=26,L=46,Rr=10,T=10,Bm=22,H=T+H1+gap+H2+Bm;
+  var t0=pts[0][0],t1=Math.max(pts[pts.length-1][0],t0+60);
+  var X=function(t){return L+(t-t0)/(t1-t0)*(W-L-Rr)};
+  var lo=Infinity,hi=-Infinity;pts.forEach(function(p){[p[1],p[3],p[4]].forEach(function(v){if(v!=null){lo=Math.min(lo,v);hi=Math.max(hi,v)}})});
+  lo=Math.min(lo,0)-1;hi=Math.max(hi,0)+1;
+  var Y1=function(v){return T+(hi-v)/(hi-lo)*H1},y2t=T+H1+gap,Y2=function(p){return y2t+(1-p)*H2};
+  var svg=sg("svg",{viewBox:"0 0 "+W+" "+H,role:"img","aria-label":r.label+" projection over time",style:"width:100%;height:auto"});
+  var add=function(n,a,txt){var e=sg(n,a);if(txt!=null)e.textContent=txt;svg.appendChild(e);return e};
+  var mono="IBM Plex Mono,monospace";
+  /* 90% band */
+  var band=pts.filter(function(p){return p[3]!=null&&p[4]!=null});
+  if(band.length>1){var up=band.map(function(p){return X(p[0]).toFixed(1)+","+Y1(p[4]).toFixed(1)}),dn=band.slice().reverse().map(function(p){return X(p[0]).toFixed(1)+","+Y1(p[3]).toFixed(1)});
+    add("path",{d:"M"+up.join(" L")+" L"+dn.join(" L")+" Z",fill:"var(--panel-2)",stroke:"none"})}
+  add("line",{x1:L,x2:W-Rr,y1:Y1(0),y2:Y1(0),stroke:"var(--text)","stroke-dasharray":"3 3",opacity:".6"});
+  /* margin line, colored by who leads on each segment */
+  for(var i=1;i<pts.length;i++){var a=pts[i-1],b=pts[i];if(a[1]==null||b[1]==null)continue;
+    add("line",{x1:X(a[0]),y1:Y1(a[1]),x2:X(b[0]),y2:Y1(b[1]),stroke:((a[1]+b[1])/2>=0?"var(--rep)":"var(--dem)"),"stroke-width":"2.2","stroke-linecap":"round"})}
+  [hi-1,0,lo+1].forEach(function(v){v=Math.round(v);add("text",{x:L-6,y:Y1(v)+4,"font-size":"11","text-anchor":"end",fill:"var(--muted)","font-family":mono},v===0?"Even":fmtM(v))});
+  add("text",{x:L,y:T+H1+16,"font-size":"11",fill:"var(--muted)","font-family":mono},"Projected margin (shaded: 90% range)");
+  /* win probability */
+  add("rect",{x:L,y:y2t,width:W-L-Rr,height:H2,fill:"none",stroke:"var(--line)"});
+  add("line",{x1:L,x2:W-Rr,y1:Y2(.5),y2:Y2(.5),stroke:"var(--text)","stroke-dasharray":"3 3",opacity:".6"});
+  var wp=pts.filter(function(p){return p[2]!=null});
+  if(wp.length>1)add("path",{d:"M"+wp.map(function(p){return X(p[0]).toFixed(1)+","+Y2(p[2]).toFixed(1)}).join(" L"),fill:"none",stroke:"var(--rep)","stroke-width":"2.2"});
+  if(wp.length>1)add("path",{d:"M"+wp.map(function(p){return X(p[0]).toFixed(1)+","+Y2(1-p[2]).toFixed(1)}).join(" L"),fill:"none",stroke:"var(--dem)","stroke-width":"2.2"});
+  [[1,"100%"],[.5,"50%"],[0,"0%"]].forEach(function(q){add("text",{x:L-6,y:Y2(q[0])+4,"font-size":"11","text-anchor":"end",fill:"var(--muted)","font-family":mono},q[1])});
+  add("text",{x:L+4,y:y2t+13,"font-size":"11",fill:"var(--muted)","font-family":mono},"Win probability");
+  /* time axis (Eastern) */
+  var span=t1-t0,step=[300,600,900,1800,3600,7200,10800].filter(function(s){return span/s<=7})[0]||21600;
+  for(var t=Math.ceil(t0/step)*step;t<=t1;t+=step){var x=X(t);
+    add("line",{x1:x,x2:x,y1:T,y2:y2t+H2,stroke:"var(--line)",opacity:".5"});
+    add("text",{x:x,y:H-6,"font-size":"11","text-anchor":"middle",fill:"var(--muted)","font-family":mono},etTime(t))}
+  /* hover readout */
+  var cur=add("line",{x1:0,x2:0,y1:T,y2:y2t+H2,stroke:"var(--hi)","stroke-width":"1",visibility:"hidden"});
+  var ov=add("rect",{x:L,y:T,width:W-L-Rr,height:y2t+H2-T,fill:"transparent"});
+  ov.addEventListener("mousemove",function(e){
+    var bb=svg.getBoundingClientRect(),tx=t0+((e.clientX-bb.left)/bb.width*W-L)/(W-L-Rr)*(t1-t0),best=pts[0];
+    pts.forEach(function(p){if(Math.abs(p[0]-tx)<Math.abs(best[0]-tx))best=p});
+    cur.setAttribute("x1",X(best[0]));cur.setAttribute("x2",X(best[0]));cur.setAttribute("visibility","visible");
+    showTip(e,"<b>"+etTime(best[0])+" ET</b><br>Projected "+fmtM(best[1])+(best[3]!=null?"<br>90% range "+fmtM(best[3])+" to "+fmtM(best[4]):"")+(best[2]!=null?"<br>"+candName(r.rep)+" "+pc1(100*best[2])+", "+candName(r.other)+" "+pc1(100-100*best[2]):"")+(best[5]!=null?"<br>"+pc1(100*best[5])+" of expected vote in":""));
+  });
+  ov.addEventListener("mouseleave",function(){cur.setAttribute("visibility","hidden");hideTip()});
+  host.appendChild(svg);
+}
 function engineBase(){var q=new URLSearchParams(location.search).get("engine");return (q||ENGINE_URL||"").replace(/\/$/,"")}
 function loadLive(id){
   var base=engineBase();if(!base||!id)return;
@@ -445,6 +505,7 @@ function loadLive(id){
     if(o&&o.state&&o.state!=="pre"&&res&&res.state==="pre"){LIVE[id].tried=Date.now();return}   /* model restarting: keep the last live detail */
     LIVE[id]={res:res,when:Date.now(),err:null};
     if(state.view==="race"&&state.sel===id)drawRace();
+    loadHist(id);
   }).catch(function(e){
     LIVE[id]=Object.assign(LIVE[id]||{},{err:(e instanceof TypeError?"the browser could not connect to "+base+", the service may be asleep or blocked":String(e.message||e)),tried:Date.now()});
     if(state.view==="race"&&state.sel===id)drawRace();
@@ -720,6 +781,7 @@ function drawRace(){
     h+='<div><dt>Projected final votes</dt><dd>'+nf(fR+fD)+'<small>'+rn+' '+nf(fR)+', '+dn+' '+nf(fD)+'</small></dd></div>';
     h+='</dl>';
     h+='<div class="card" style="margin-bottom:18px"><h3 style="margin-top:0;border:0;padding:0">Where the final margin could land</h3>'+distChart(res)+'<div class="sub">Shaded band is the 90% range. Solid line is the median, dashed line is a tie.</div></div>';
+    h+='<div class="card" style="margin-bottom:18px"><h3 style="margin-top:0;border:0;padding:0">Projection since polls closed</h3><div id="histc"></div><div class="sub" style="margin-top:6px">Projected margin with its 90% range, and each candidate\'s chance of winning, recorded from poll close (Eastern time). Hover for any moment.</div></div>';
     h+='<div class="rp-grid3"><div class="card mapc"><h3 style="margin-top:0;border:0;padding:0">Projected remaining votes</h3><div id="cmapB"></div><div class="sub" style="margin-top:6px">Each bubble is the projected net votes still out in that county: size is how many votes the leader of the remaining vote nets, color is who nets them. Hover for the projected split. Counties without a bubble have nothing left.</div></div>';
     h+='<div class="card mapc"><h3 style="margin-top:0;border:0;padding:0">Projected final votes</h3><div id="cmapC"></div><div class="sub" style="margin-top:6px">Color is the projected final margin in each county. Hover for the projected final votes.</div></div></div>';
     var trs2=[];
@@ -766,6 +828,7 @@ function drawRace(){
   } else h+='<div class="card"><div class="sub" style="font-family:var(--body);font-size:14px">These charts fill in once the live model answers and counties start to report.</div></div>';
   box.innerHTML=h;
   /* maps and wiring */
+  drawHist(r);
   liveMap("cmapA",r,function(f){
     var w=rows[f];if(!live||!w||w[3]<=0)return live?null:blendOf(r,r.counties.filter(function(c){return c[0]===f})[0]);
     return w[11];
